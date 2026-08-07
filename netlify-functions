@@ -1,0 +1,3 @@
+# Netlify functions alternative folder (use this if netlify/ is a file)
+
+# Create JS/TS files here: netlify-functions/places-get.ts, netlify-functions/places-search.ts
