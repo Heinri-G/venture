@@ -1,15 +1,15 @@
 ---
 name: mapbox-integration
-description: Guidelines and code snippets for integrating Mapbox GL JS in a Next.js React application.
+description: Guidelines and code snippets for integrating Mapbox GL JS in a Vite + React application.
 ---
 
 # Mapbox Integration Skill
 
-When building Mapbox maps in this Next.js project, follow these guidelines:
+When building Mapbox maps in this Vite + React project, follow these guidelines:
 
 ## Setup
 1. Use the `mapbox-gl` package.
-2. The Mapbox token should be stored in `.env.local` as `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`.
+2. The Mapbox token should be stored in `.env` as `VITE_MAPBOX_ACCESS_TOKEN` (exposed to the client via Vite's VITE_ prefix). Do NOT commit `.env`.
 
 ## Basic React Component Example
 ```javascript
@@ -17,7 +17,7 @@ import React, { useRef, useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
 export default function Map() {
   const mapContainer = useRef(null);

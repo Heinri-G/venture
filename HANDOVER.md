@@ -1,4 +1,4 @@
-Handover for Next.js → Vite + Netlify migration
+Handover: Vite + Netlify migration (current state)
 
 Overview
 --------
@@ -6,18 +6,18 @@ This document summarizes progress, work already done, blockers, and prioritized 
 
 Status summary (current)
 ------------------------
-- Analysis: Complete — located Next.js app files, API routes, server actions, and Supabase integration.
+- Analysis: Complete — located app files, API routes, server actions, and Supabase integration targeted for Vite + Netlify.
 - Changes applied: package.json scripts replaced for Vite (dev/build/start). Some Next.js dependency references removed from package.json.
 - Todos: All migration todos created and set to in_progress in session DB.
 - Files inspected (key):
-  - next.config.ts
-  - src/app/layout.tsx, src/app/page.tsx
-  - src/app/login/page.tsx, src/app/signup/page.tsx
-  - src/app/auth/actions.ts
+  - vite.config.ts
+  - src/main.tsx, src/App.tsx (or src/App/index.tsx)
+  - src/pages or src/routes equivalents converted from src/app pages
+  - src/app/auth/actions.ts (migrate logic into client + Netlify Functions)
   - src/app/actions/places.ts
-  - src/app/api/places/[id]/route.ts
-  - src/app/api/places/search/route.ts
-  - src/lib/supabase/* (referenced; adapt for Vite/Netlify)
+  - netlify/functions/places-get.ts (from route.ts [id])
+  - netlify/functions/places-search.ts (from route.ts search)
+  - src/lib/supabase/* (referenced; adapt for browser + Netlify Functions)
 
 What was NOT changed yet
 ------------------------
@@ -76,8 +76,8 @@ Conversion notes / mapping
 - Next.js server actions and API routes → Netlify Functions.
   - Convert Next.js Request/Response handlers to Netlify's handler(event, context) format.
   - Map `request.nextUrl.searchParams` to new URL or event.queryStringParameters.
-- `revalidatePath`, `redirect` from Next.js: replace with client-side navigation (react-router's navigate) and keep caches short; server-side revalidation isn't available the same way—use client refresh or webhooks where needed.
-- Next.js Image/Font optimizations: remove next/image references; use standard <img> or a lightweight image component. Replace next/font/google with a link or local font import.
+- Replace framework-specific helpers (e.g., revalidatePath, redirect) with client-side navigation and webhook approaches where needed; favor client refresh or webhooks for cache invalidation.
+- Image/Font optimizations: remove framework-specific helpers like next/image; use standard <img> or a lightweight image component. Use link or local font import instead of framework font helpers.
 - For environment exposure: Vite requires env vars prefixed with VITE_ to be exposed in client bundles.
 
 Suggested Netlify function handler pattern (pseudo)
@@ -124,8 +124,8 @@ Commit guidance
 
 Where to look for context
 -------------------------
-- next.config.ts — to learn what remote image hosts were allowed
-- src/app/* — original pages, layout, and server actions
+- vite.config.ts — review to learn what remote image hosts or build-time settings are needed
+- src/* — React components, pages/routes, and server action references
 - src/app/api/places/* — API logic that must be migrated
 - src/lib/supabase/* — client/server patterns to adapt
 

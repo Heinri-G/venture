@@ -1,7 +1,6 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { revalidatePath } from 'next/cache';
 
 export interface PlaceInput {
   foursquare_fsq_id?: string;
@@ -91,7 +90,6 @@ export async function savePlace(placeInput: PlaceInput, notes: string, rating: n
     return { error: saveError.message };
   }
 
-  revalidatePath('/');
   return { success: true, savedPlace };
 }
 
@@ -144,6 +142,5 @@ export async function deleteSavedPlace(savedPlaceId: string) {
 
   if (error) return { error: error.message };
 
-  revalidatePath('/');
   return { success: true };
 }

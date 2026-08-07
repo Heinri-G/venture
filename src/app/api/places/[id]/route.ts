@@ -1,14 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
+export async function GET(request: Request, context: { params?: { id?: string } } ) {
+  // Try to read id from context.params (Next style) or from the URL
+  const url = new URL(request.url);
+  const id = context?.params?.id || url.pathname.split('/').pop();
   const apiKey = process.env.FOURSQUARE_API_KEY;
 
   if (!apiKey) {
-    return NextResponse.json({
+    return new Response(JSON.stringify({
       fsq_id: id,
       name: 'Sample Place',
       location: { formatted_address: '123 Explorer Way' },
@@ -16,7 +13,7 @@ export async function GET(
       categories: [{ name: 'Point of Interest' }],
       rating: 8.5,
       description: 'A wonderful place to explore.'
-    });
+    }), { headers: { 'Content-Type': 'application/json' } });
   }
 
   try {
@@ -26,8 +23,7 @@ export async function GET(
         headers: {
           accept: 'application/json',
           Authorization: apiKey,
-        },
-        next: { revalidate: 86400 } // Cache for 24 hours
+        }
       }
     );
 
@@ -36,9 +32,9 @@ export async function GET(
     }
 
     const data = await res.json();
-    return NextResponse.json(data);
+    return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
   } catch (error: any) {
     console.error('Error fetching Foursquare place details:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch place details' }, { status: 500 });
+    return new Response(JSON.stringify({ error: error.message || 'Failed to fetch place details' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }

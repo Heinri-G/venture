@@ -13,7 +13,7 @@
 # testing
 /coverage
 
-# next.js
+# Vite / legacy Next.js leftovers
 /.next/
 /out/
 
@@ -34,13 +34,11 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
-# vercel
-.vercel
+# Netlify
+.netlify
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
 # Local Netlify folder
-.netlify
 .env

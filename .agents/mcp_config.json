@@ -15,15 +15,15 @@
         "postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-SUPABASE-REF].supabase.co:5432/postgres"
       ]
     },
-    "vercel": {
+    "netlify": {
       "command": "npx",
       "args": [
         "-y",
         "@smithery/cli@latest",
         "run",
-        "@modelcontextprotocol/server-vercel",
+        "@modelcontextprotocol/server-netlify",
         "--config",
-        "{\"vercelToken\":\"YOUR_VERCEL_API_TOKEN\"}"
+        "{\"netlifyToken\":\"YOUR_NETLIFY_API_TOKEN\"}"
       ]
     }
   }

@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { Link } from 'react-router-dom';
 import { login } from '@/app/auth/actions';
 import { MapPin, ArrowRight } from 'lucide-react';
 

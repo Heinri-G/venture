@@ -44,7 +44,7 @@ export default function SearchBar({ onSelectResult }: SearchBarProps) {
         if (query) params.append('query', query);
         if (activeCategory) params.append('category', activeCategory);
 
-        const res = await fetch(`/api/places/search?${params.toString()}`);
+        const res = await fetch(`/.netlify/functions/places-search?${params.toString()}`);
         const data = await res.json();
         setResults(data.results || []);
       } catch (err) {

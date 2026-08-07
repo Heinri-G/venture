@@ -1,20 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const searchParams = url.searchParams;
   const query = searchParams.get('query');
   const lat = searchParams.get('lat');
   const lng = searchParams.get('lng');
   const category = searchParams.get('category');
 
   if (!query && !category) {
-    return NextResponse.json({ results: [] });
+    return new Response(JSON.stringify({ results: [] }), { headers: { 'Content-Type': 'application/json' } });
   }
 
   const apiKey = process.env.FOURSQUARE_API_KEY;
   if (!apiKey) {
     // Demo/Fallback response if key is missing during testing
-    return NextResponse.json({
+    return new Response(JSON.stringify({
       results: [
         {
           fsq_id: 'demo-1',
@@ -31,7 +30,7 @@ export async function GET(request: NextRequest) {
           categories: [{ name: 'Art Museum', icon: { prefix: 'https://ss3.4sqi.net/img/categories_v2/arts_entertainment/museum_art_', suffix: '.png' } }]
         }
       ]
-    });
+    }), { headers: { 'Content-Type': 'application/json' } });
   }
 
   try {
@@ -46,8 +45,7 @@ export async function GET(request: NextRequest) {
       headers: {
         accept: 'application/json',
         Authorization: apiKey,
-      },
-      next: { revalidate: 3600 } // Cache for 1 hour
+      }
     });
 
     if (!res.ok) {
@@ -55,9 +53,9 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await res.json();
-    return NextResponse.json(data);
+    return new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
   } catch (error: any) {
     console.error('Error fetching Foursquare places:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch places' }, { status: 500 });
+    return new Response(JSON.stringify({ error: error.message || 'Failed to fetch places' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }

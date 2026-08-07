@@ -1,18 +1,9 @@
-import { type NextRequest } from 'next/server';
-import { updateSession } from '@/lib/supabase/proxy';
+// Proxy middleware shim for non-Next environments
+// This file existed for Next.js middleware. In the Vite + Netlify setup
+// middleware is not used the same way, so export a harmless stub.
 
-export async function proxy(request: NextRequest) {
-  return await updateSession(request);
+export async function proxy(request: any) {
+  // noop shim to avoid import errors when bundling with Vite
+  return null;
 }
 
-export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
-};

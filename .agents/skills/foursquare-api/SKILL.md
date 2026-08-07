@@ -1,6 +1,6 @@
 ---
 name: foursquare-api
-description: Reference for using the Foursquare Places API to search for locations and retrieve details in Next.js.
+description: Reference for using the Foursquare Places API to search for locations and retrieve details via Netlify Functions (Vite + React frontend).
 ---
 
 # Foursquare Places API Skill
@@ -8,7 +8,7 @@ description: Reference for using the Foursquare Places API to search for locatio
 When fetching place data, use the Foursquare Places API.
 
 ## Authentication
-- API Key must be stored in `.env.local` as `FOURSQUARE_API_KEY`.
+- API Key must be stored in `.env` during development and configured in the Netlify UI for production as `FOURSQUARE_API_KEY`. Do NOT commit `.env`.
 - Include the key in the `Authorization` header for all requests.
 
 ## Key Endpoints
@@ -29,5 +29,5 @@ Use this when a user taps on a place to view more info (photos, ratings, hours) 
 - **Query Params**: Use the `fields` parameter to limit the response and save costs. Common fields: `fsq_id,name,location,categories,photos,rating,hours`.
 
 ## Best Practices
-- **Security**: Always proxy Foursquare requests through the Next.js backend (using Next.js Route Handlers or Server Actions) to keep the `FOURSQUARE_API_KEY` secure. **Do not** fetch directly from the client component.
+- **Security**: Always proxy Foursquare requests through Netlify Functions to keep the `FOURSQUARE_API_KEY` secure. **Do not** fetch directly from the client component.
 - **Caching**: Cache responses where appropriate to reduce API calls and stay well within the free tier limits.
