@@ -28,7 +28,7 @@ Tech Stack:
 - React + Vite (TypeScript)
 - Tailwind CSS v4
 - Supabase (PostgreSQL, Auth, Storage)
-- Mapbox GL JS for maps
+- Leaflet + OpenStreetMap
 - Lucide React for icons
 - The app uses the src/ directory structure and Vite conventions
 

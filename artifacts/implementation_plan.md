@@ -7,9 +7,8 @@ This document outlines the technical implementation plan for building the first 
 * **Frontend Framework**: **React + Vite** (optionally built as a Progressive Web App using Vite PWA plugin). Vite provides very fast local development and simple production builds.
 * **Styling**: **Tailwind CSS**. We will strictly follow a mobile-first design approach.
 * **Backend & Database**: **Supabase** (PostgreSQL). Handles user auth (Google/Email), relational database (Places, Adventures, Users, Groups), and storage (Avatars and user-uploaded photos). Supabase's free tier is very generous and perfect for v1.
-* **Maps**: **Mapbox GL JS**. 
-  * *Cost*: Generous free tier (50,000 map loads per month).
-  * *Benefit*: Highly customizable, beautiful map tiles.
+* **Maps**: **Leaflet + OpenStreetMap**. 
+ 
 * **Places Data**: **Foursquare Places API** or similar third-party places provider.
   * *Cost*: Generous free tier for typical MVP usage.
   * *Benefit*: Rich POI data without high Google costs.
@@ -47,7 +46,7 @@ We will need the following core tables:
 4. Configure Netlify site with automatic deploys from GitHub main branch and set production environment variables.
 
 ### Phase 2: Map & Places Integration
-1. Integrate Mapbox API to render a full-screen, interactive mobile map.
+1. Integrate Leaflet API to render a full-screen, interactive mobile map.
 2. Implement a search bar powered by the Foursquare Places API (Autocomplete) proxied via Netlify Functions.
 3. Allow users to tap on places on the map or search to view details (fetching rich details from the places provider via serverless proxy).
 4. Implement the "Save" functionality (saving the place to Supabase along with user notes and ratings).

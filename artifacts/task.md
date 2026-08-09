@@ -11,7 +11,7 @@
 - [ ] Create basic User Profile page
 
 ## Phase 2: Map & Places Integration
-- [ ] Integrate Mapbox GL JS (full-screen mobile map)
+- [ ] Integrate Leaflet + OpenStreetMap (full-screen mobile map)
 - [ ] Implement Foursquare Places search bar (Autocomplete) proxied via Netlify Functions
 - [ ] Build Place Details bottom sheet / modal
 - [ ] Implement "Save Place" functionality (notes, rating)

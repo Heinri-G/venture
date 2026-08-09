@@ -7,23 +7,34 @@ export default function Profile() {
   const [bio, setBio] = useState('');
   const [isPublic, setIsPublic] = useState(true);
   const [avatar, setAvatar] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     let mounted = true;
     async function load() {
       setLoading(true);
-      const { data, error } = await supabase.auth.getUser();
-      if (error || !data?.user) {
+      setSaveError('');
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user) {
         setLoading(false);
         return;
       }
-      const user = data.user;
-      const md = (user.user_metadata || {}) as Record<string, any>;
+      const user = userData.user;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('display_name, bio, is_public, avatar_url')
+        .eq('id', user.id)
+        .single();
       if (!mounted) return;
-      setName(md.full_name || '');
-      setBio(md.bio || '');
-      setIsPublic(md.profile_public !== false);
-      setAvatar(md.avatar_url || null);
+      if (error) {
+        setSaveError('Failed to load profile');
+        setLoading(false);
+        return;
+      }
+      setName(data?.display_name || '');
+      setBio(data?.bio || '');
+      setIsPublic(data?.is_public !== false);
+      setAvatar(data?.avatar_url || null);
       setLoading(false);
     }
     load();
@@ -33,24 +44,35 @@ export default function Profile() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({
-      data: {
-        full_name: name,
-        bio,
-        profile_public: isPublic,
-      }
-    });
-    setLoading(false);
-    if (error) {
-      alert('Failed to update profile: ' + error.message);
+    setSaveError('');
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData?.user) {
+      setSaveError('Not authenticated');
+      setLoading(false);
       return;
     }
-    alert('Profile updated');
+    const user = userData.user;
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        display_name: name || null,
+        bio: bio || null,
+        is_public: isPublic,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', user.id);
+    setLoading(false);
+    if (error) {
+      setSaveError('Failed to update profile: ' + error.message);
+      return;
+    }
+    setSaveError('');
   };
 
   const uploadAvatar = async (file: File | null) => {
     if (!file) return;
     setLoading(true);
+    setSaveError('');
     try {
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr || !userData?.user) throw new Error('Not authenticated');
@@ -62,13 +84,19 @@ export default function Profile() {
       const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(filePath);
       const publicUrl = publicData?.publicUrl || null;
       if (publicUrl) {
-        const { error: updErr } = await supabase.auth.updateUser({ data: { avatar_url: publicUrl } });
+        const { error: updErr } = await supabase
+          .from('profiles')
+          .update({
+            avatar_url: publicUrl,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', user.id);
         if (updErr) throw updErr;
         setAvatar(publicUrl);
       }
-      alert('Avatar uploaded');
+      setSaveError('');
     } catch (err: any) {
-      alert('Avatar upload failed: ' + (err.message || err));
+      setSaveError('Avatar upload failed: ' + (err.message || err));
     } finally {
       setLoading(false);
     }
@@ -79,37 +107,78 @@ export default function Profile() {
     await uploadAvatar(f);
   };
 
-  if (loading) return <div className="p-4">Loading...</div>;
+  if (loading && !name && !bio && !avatar) return <div className="p-4 text-center">Loading profile...</div>;
 
   return (
-    <div className="max-w-md mx-auto p-4">
-      <h2 className="text-xl font-semibold mb-4">Your profile</h2>
+    <div className="max-w-md mx-auto p-4 space-y-6">
+      <h2 className="text-2xl font-semibold">Your Profile</h2>
 
-      {avatar ? (
-        <div className="mb-4">
-          <img src={avatar} alt="avatar" className="w-24 h-24 rounded-full object-cover" />
+      {saveError && (
+        <div className="p-3 bg-red-100 text-red-800 rounded text-sm">
+          {saveError}
         </div>
-      ) : (
-        <div className="mb-4 w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center">No avatar</div>
       )}
 
-      <form onSubmit={onSubmit}>
-        <label className="block mb-2">Display name
-          <input className="w-full p-2 border rounded" value={name} onChange={e => setName(e.target.value)} />
+      <div className="flex flex-col items-center space-y-3">
+        {avatar ? (
+          <img src={avatar} alt="avatar" className="w-24 h-24 rounded-full object-cover" />
+        ) : (
+          <div className="w-24 h-24 bg-gray-300 rounded-full flex items-center justify-center text-gray-600">No avatar</div>
+        )}
+        <label className="text-sm text-gray-600">
+          <input type="file" accept="image/*" onChange={onFileChange} className="hidden" disabled={loading} />
+          <span className="cursor-pointer text-indigo-600 hover:text-indigo-700">Change avatar</span>
         </label>
-        <label className="block mb-2">Bio
-          <textarea className="w-full p-2 border rounded" value={bio} onChange={e => setBio(e.target.value)} />
-        </label>
-        <label className="block mb-4">Public profile
-          <input type="checkbox" className="ml-2" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} />
-        </label>
+      </div>
 
-        <div className="mb-4">
-          <label className="block mb-2">Upload avatar</label>
-          <input type="file" accept="image/*" onChange={onFileChange} />
+      <form onSubmit={onSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="name" className="block text-sm font-medium mb-1">Display name</label>
+          <input
+            id="name"
+            type="text"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:ring-2"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Your display name"
+            disabled={loading}
+          />
         </div>
 
-        <button className="px-4 py-2 bg-indigo-600 text-white rounded" disabled={loading}>{loading ? 'Saving...' : 'Save profile'}</button>
+        <div>
+          <label htmlFor="bio" className="block text-sm font-medium mb-1">Bio</label>
+          <textarea
+            id="bio"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:ring-2"
+            value={bio}
+            onChange={e => setBio(e.target.value)}
+            placeholder="Tell us about yourself"
+            rows={4}
+            disabled={loading}
+          />
+        </div>
+
+        <div className="flex items-center space-x-3">
+          <input
+            id="public"
+            type="checkbox"
+            className="w-4 h-4"
+            checked={isPublic}
+            onChange={e => setIsPublic(e.target.checked)}
+            disabled={loading}
+          />
+          <label htmlFor="public" className="text-sm font-medium cursor-pointer">
+            Make profile public
+          </label>
+        </div>
+
+        <button
+          type="submit"
+          className="w-full px-4 py-2 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={loading}
+        >
+          {loading ? 'Saving...' : 'Save Changes'}
+        </button>
       </form>
     </div>
   );
