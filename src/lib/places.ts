@@ -27,6 +27,7 @@ export interface SearchPlacesOptions {
   longitude?: number;
   limit?: number;
   category?: string;
+  radius?: number;
 }
 
 export async function searchPlaces(

@@ -4,7 +4,7 @@ import { ArrowRight, Bookmark, CheckCircle2, Compass, MapPin, Search, Sparkles }
 import { Link } from 'react-router-dom';
 import MapView from './components/MapView';
 import SearchBar from './components/search/SearchBar';
-import PlaceDetailsSheet from './components/places/PlaceDetailsSheet';
+import PlaceDetails from './components/PlaceDetails';
 import { getPlaceDetails, type PlaceSuggestion as SearchResult } from './lib/places';
 import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
@@ -17,7 +17,10 @@ interface Place {
   latitude: number;
   longitude: number;
   category?: string;
-  photo_url?: string;
+  photoUrl?: string;
+  phone?: string;
+  website?: string;
+  hours?: string;
   rating?: number;
   description?: string;
 }
@@ -66,7 +69,10 @@ export default function Home() {
         latitude: details.latitude || res.latitude,
         longitude: details.longitude || res.longitude,
         category: details.category || res.category,
-        photo_url: details.photoUrl,
+        photoUrl: details.photoUrl,
+        phone: details.phone,
+        website: details.website,
+        hours: details.hours,
         rating: details.rating,
         description: details.description,
       });
@@ -265,9 +271,10 @@ export default function Home() {
       </section>
 
       {placeDetails && (
-        <PlaceDetailsSheet
+        <PlaceDetails
           key={placeDetails.fsq_id || placeDetails.name}
           place={placeDetails}
+          isOpen={Boolean(placeDetails)}
           onClose={() => setPlaceDetails(null)}
         />
       )}

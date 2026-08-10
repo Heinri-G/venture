@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase/client';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import PlacesSearch from './PlacesSearch';
+import PlaceDetails from './PlaceDetails';
 import type { PlaceResult } from '../lib/places';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -28,6 +29,8 @@ export interface MapMarker {
   longitude: number;
   category?: string;
   photoUrl?: string;
+  address?: string;
+  fsqId?: string;
   placeId?: string;
   saved?: boolean;
 }
@@ -43,6 +46,7 @@ interface MapViewProps {
 
 const DEFAULT_CENTER: [number, number] = [52.52, 13.405]; // Berlin
 const DEFAULT_ZOOM = 12;
+let searchMarkerCounter = 0;
 
 const DEMO_MARKERS: MapMarker[] = [
   { id: 'demo-1', name: 'Demo Coffee — Mitte', latitude: 52.5208, longitude: 13.4095, category: 'Coffee Shop' },
@@ -103,8 +107,10 @@ export default function MapView({
   const [loadedMarkers, setLoadedMarkers] = useState<MapMarker[]>([]);
   const [searchMarkers, setSearchMarkers] = useState<MapMarker[]>([]);
   const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const hasExternalMarkers = markers !== undefined;
+  const searchResultsRef = useRef<Map<string, PlaceResult>>(new Map());
 
   // When no markers are provided, load public places from Supabase (demo fallback).
   useEffect(() => {
@@ -116,7 +122,7 @@ export default function MapView({
       try {
         const { data, error, status } = await supabase
           .from('places')
-          .select('id, name, latitude, longitude, category, photo_url')
+          .select('id, name, latitude, longitude, category, photo_url, address, foursquare_fsq_id')
           .limit(500);
 
         if (error) {
@@ -128,14 +134,27 @@ export default function MapView({
           if (mounted) setLoadedMarkers(tableMissing ? DEMO_MARKERS : []);
         } else if (mounted && data) {
           setLoadedMarkers(
-            data.map((p: { id: unknown; name: unknown; latitude: unknown; longitude: unknown; category: unknown; photo_url: unknown }) => ({
-              id: String(p.id),
-              name: String(p.name),
-              latitude: Number(p.latitude),
-              longitude: Number(p.longitude),
-              category: p.category ? String(p.category) : undefined,
-              photoUrl: p.photo_url ? String(p.photo_url) : undefined,
-            }))
+            data.map(
+              (p: {
+                id: unknown;
+                name: unknown;
+                latitude: unknown;
+                longitude: unknown;
+                category: unknown;
+                photo_url: unknown;
+                address: unknown;
+                foursquare_fsq_id: unknown;
+              }) => ({
+                id: String(p.id),
+                name: String(p.name),
+                latitude: Number(p.latitude),
+                longitude: Number(p.longitude),
+                category: p.category ? String(p.category) : undefined,
+                photoUrl: p.photo_url ? String(p.photo_url) : undefined,
+                address: p.address ? String(p.address) : undefined,
+                fsqId: p.foursquare_fsq_id ? String(p.foursquare_fsq_id) : undefined,
+              })
+            )
           );
         }
       } catch (err) {
@@ -165,16 +184,43 @@ export default function MapView({
 
   const handlePlaceSelect = (place: PlaceResult) => {
     const marker: MapMarker = {
-      id: place.fsq_id || `search-${Date.now()}`,
+      id: place.fsq_id || `search-${++searchMarkerCounter}`,
       name: place.name,
       latitude: place.latitude,
       longitude: place.longitude,
       category: place.category,
       photoUrl: place.photoUrl,
+      address: place.address,
+      fsqId: place.fsq_id,
       placeId: place.fsq_id,
     };
     setSearchMarkers((prev) => (prev.some((m) => m.id === marker.id) ? prev : [...prev, marker]));
+    if (place.fsq_id) {
+      searchResultsRef.current.set(place.fsq_id, place);
+    }
     mapRef.current?.flyTo([place.latitude, place.longitude], 14, { duration: 1.5 });
+    setSelectedPlace(place);
+  };
+
+  const handleMarkerClick = (marker: MapMarker) => {
+    if (onSelectMarker) {
+      onSelectMarker(marker.id);
+      return;
+    }
+    const stored = marker.fsqId ? searchResultsRef.current.get(marker.fsqId) : undefined;
+    setSelectedPlace({
+      fsq_id: stored?.fsq_id || marker.fsqId,
+      name: marker.name,
+      address: stored?.address || marker.address,
+      latitude: marker.latitude,
+      longitude: marker.longitude,
+      category: stored?.category || marker.category,
+      photoUrl: stored?.photoUrl || marker.photoUrl,
+      phone: stored?.phone,
+      website: stored?.website,
+      hours: stored?.hours,
+      description: stored?.description,
+    });
   };
 
   const shownMarkers = useMemo(
@@ -218,7 +264,7 @@ export default function MapView({
             <Marker
               key={m.id}
               position={[m.latitude, m.longitude]}
-              eventHandlers={{ click: () => onSelectMarker?.(m.id) }}
+              eventHandlers={{ click: () => handleMarkerClick(m) }}
             >
               <Popup>
                 <div className="text-sm">
@@ -280,6 +326,13 @@ export default function MapView({
           Loading places...
         </Badge>
       )}
+
+      <PlaceDetails
+        key={selectedPlace?.fsq_id || selectedPlace?.name || 'none'}
+        place={selectedPlace}
+        isOpen={Boolean(selectedPlace)}
+        onClose={() => setSelectedPlace(null)}
+      />
     </div>
   );
 }

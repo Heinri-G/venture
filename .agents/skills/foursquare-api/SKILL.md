@@ -14,7 +14,7 @@ When fetching place data, use the Foursquare Places API.
 ## Key Endpoints
 ### 1. Place Search / Autocomplete
 Use this to build the search bar where users look for places to save.
-- **Endpoint**: `https://api.foursquare.com/v3/places/search` or `https://api.foursquare.com/v3/autocomplete`
+- **Endpoint**: `https://places-api.foursquare.com/places/search` (new Places API) or `https://api.foursquare.com/v3/places/search` (legacy v3, deprecated May 15 2026)
 - **Headers**:
 ```json
 {
@@ -22,6 +22,10 @@ Use this to build the search bar where users look for places to save.
   "Authorization": "YOUR_FOURSQUARE_API_KEY"
 }
 ```
+- **Location params are optional**:
+  - `ll` (lat,lng) is optional. Passing it anchors and prioritizes nearby results. Omit it to fall back to a global/IP-biased search — do **not** inject hardcoded coordinates as defaults.
+  - Do **not** send `radius` unless explicitly requested: `radius` omits global search results.
+  - Other location options: `near` (geocodable locality), `ne`/`sw` (bounding box).
 
 ### 2. Place Details
 Use this when a user taps on a place to view more info (photos, ratings, hours) before saving it.

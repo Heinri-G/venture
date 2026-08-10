@@ -18,6 +18,7 @@ interface SearchRequest {
   longitude?: number;
   limit?: number;
   category?: string;
+  radius?: number;
 }
 
 function parseRequest(event: { body: string | null; queryStringParameters: Record<string, string | undefined> | null }): SearchRequest {
@@ -36,6 +37,7 @@ function parseRequest(event: { body: string | null; queryStringParameters: Recor
     longitude: params.lng ? Number(params.lng) : params.longitude ? Number(params.longitude) : undefined,
     limit: params.limit ? Number(params.limit) : undefined,
     category: params.category || undefined,
+    radius: params.radius ? Number(params.radius) : undefined,
   };
 }
 
@@ -80,7 +82,7 @@ function getDemoResults(query: string | undefined, category: string | undefined)
 }
 
 export const handler: Handler = async (event) => {
-  const { query, latitude, longitude, limit, category } = parseRequest(event);
+  const { query, latitude, longitude, limit, category, radius } = parseRequest(event);
 
   if (!query && !category) {
     return {
@@ -102,10 +104,20 @@ export const handler: Handler = async (event) => {
   try {
     const url = new URL(`${PLACES_API_BASE}/places/search`);
     if (query) url.searchParams.set('query', query);
-    // The Places API requires a location context for text queries.
-    const lat = latitude ?? 52.52;
-    const lng = longitude ?? 13.405;
-    url.searchParams.set('ll', `${lat},${lng}`);
+    // ll is optional. When both coords are valid it anchors/prioritises nearby
+    // results; when omitted the API falls back to a global/IP-biased search.
+    const hasValidCoords =
+      typeof latitude === 'number' &&
+      Number.isFinite(latitude) &&
+      typeof longitude === 'number' &&
+      Number.isFinite(longitude);
+    if (hasValidCoords) {
+      url.searchParams.set('ll', `${latitude},${longitude}`);
+    }
+    // radius would omit global results, so it is only sent when explicitly requested.
+    if (typeof radius === 'number' && Number.isFinite(radius) && radius >= 0) {
+      url.searchParams.set('radius', String(radius));
+    }
     if (category) url.searchParams.set('categories', category);
     url.searchParams.set('limit', String(Math.min(Math.max(limit || 10, 1), 10)));
     url.searchParams.set(
