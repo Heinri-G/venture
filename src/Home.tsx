@@ -5,17 +5,10 @@ import { Link } from 'react-router-dom';
 import MapView from './components/MapView';
 import SearchBar from './components/search/SearchBar';
 import PlaceDetailsSheet from './components/places/PlaceDetailsSheet';
+import { getPlaceDetails, type PlaceSuggestion as SearchResult } from './lib/places';
 import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
 import { Card, CardContent } from './components/ui/card';
-
-interface SearchResult {
-  fsq_id: string;
-  name: string;
-  location?: { address?: string; formatted_address?: string };
-  geocodes?: { main: { latitude: number; longitude: number } };
-  categories?: { name: string }[];
-}
 
 interface Place {
   fsq_id?: string;
@@ -65,28 +58,27 @@ export default function Home() {
     if (!res?.fsq_id) return;
 
     try {
-      const r = await fetch(`/.netlify/functions/places-get?id=${res.fsq_id}`);
-      const data = await r.json();
-      const photo = data.photos && data.photos[0] ? `${data.photos[0].prefix}original${data.photos[0].suffix}` : data.photo_url || null;
+      const details = await getPlaceDetails(res.fsq_id);
       setPlaceDetails({
-        fsq_id: data.fsq_id || res.fsq_id,
-        name: data.name || res.name,
-        address: data.location?.formatted_address || res.location?.formatted_address || res.location?.address,
-        latitude: data.geocodes?.main?.latitude || res.geocodes?.main?.latitude,
-        longitude: data.geocodes?.main?.longitude || res.geocodes?.main?.longitude,
-        category: data.categories?.[0]?.name || res.categories?.[0]?.name,
-        photo_url: photo,
-        rating: data.rating,
-        description: data.description,
+        fsq_id: details.fsq_id || res.fsq_id,
+        name: details.name || res.name,
+        address: details.address || res.address,
+        latitude: details.latitude || res.latitude,
+        longitude: details.longitude || res.longitude,
+        category: details.category || res.category,
+        photo_url: details.photoUrl,
+        rating: details.rating,
+        description: details.description,
       });
     } catch (err) {
       console.error('Failed to load place details', err);
       setPlaceDetails({
         fsq_id: res.fsq_id,
         name: res.name,
-        address: res.location?.formatted_address || res.location?.address,
-        latitude: res.geocodes?.main?.latitude ?? 0,
-        longitude: res.geocodes?.main?.longitude ?? 0,
+        address: res.address,
+        latitude: res.latitude,
+        longitude: res.longitude,
+        category: res.category,
       });
     }
   };
@@ -162,10 +154,10 @@ export default function Home() {
                 <SearchBar onSelectResult={handleSelectResult} />
                 <MapView
                   selectedLocation={
-                    selectedResult?.geocodes?.main
+                    selectedResult
                       ? {
-                          latitude: selectedResult.geocodes.main.latitude,
-                          longitude: selectedResult.geocodes.main.longitude,
+                          latitude: selectedResult.latitude,
+                          longitude: selectedResult.longitude,
                           name: selectedResult.name,
                         }
                       : null

@@ -1,5 +1,8 @@
 import { Handler } from '@netlify/functions';
 
+const PLACES_API_BASE = 'https://places-api.foursquare.com';
+const PLACES_API_VERSION = '2025-06-17';
+
 interface SearchSuggestion {
   fsq_id: string;
   name: string;
@@ -17,7 +20,7 @@ interface SearchRequest {
   category?: string;
 }
 
-function parseRequest(event: { body: string | null; queryStringParameters: Record<string, string> | null }): SearchRequest {
+function parseRequest(event: { body: string | null; queryStringParameters: Record<string, string | undefined> | null }): SearchRequest {
   if (event.body) {
     try {
       const body = JSON.parse(event.body) as SearchRequest;
@@ -97,20 +100,25 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    const url = new URL('https://api.foursquare.com/v3/places/search');
+    const url = new URL(`${PLACES_API_BASE}/places/search`);
     if (query) url.searchParams.set('query', query);
-    if (latitude !== undefined && longitude !== undefined) {
-      url.searchParams.set('ll', `${latitude},${longitude}`);
-    }
+    // The Places API requires a location context for text queries.
+    const lat = latitude ?? 52.52;
+    const lng = longitude ?? 13.405;
+    url.searchParams.set('ll', `${lat},${lng}`);
     if (category) url.searchParams.set('categories', category);
     url.searchParams.set('limit', String(Math.min(Math.max(limit || 10, 1), 10)));
     url.searchParams.set(
       'fields',
-      'fsq_id,name,geocodes,location,categories'
+      'fsq_place_id,name,latitude,longitude,categories,location'
     );
 
     const res = await fetch(url.toString(), {
-      headers: { accept: 'application/json', Authorization: apiKey },
+      headers: {
+        accept: 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        'X-Places-Api-Version': PLACES_API_VERSION,
+      },
     });
 
     if (!res.ok) {
@@ -122,14 +130,14 @@ export const handler: Handler = async (event) => {
 
     const data = await res.json();
     const results: SearchSuggestion[] = (data.results || []).map((place: any) => ({
-      fsq_id: place.fsq_id,
+      fsq_id: place.fsq_place_id,
       name: place.name,
       address:
         place.location?.formatted_address ||
         place.location?.address ||
         'Address unavailable',
-      latitude: place.geocodes?.main?.latitude ?? 0,
-      longitude: place.geocodes?.main?.longitude ?? 0,
+      latitude: place.latitude,
+      longitude: place.longitude,
       category: place.categories?.[0]?.name || 'Venue',
     }));
 

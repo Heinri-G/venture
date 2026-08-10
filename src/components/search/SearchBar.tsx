@@ -4,18 +4,13 @@ import { Search, X, MapPin, Coffee, Utensils, Compass, Moon, Trees } from 'lucid
 import { Badge, badgeVariants } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { searchPlaces, type PlaceSuggestion } from '@/lib/places';
 import { cn } from '@/lib/utils';
 
-interface SearchResult {
-  fsq_id: string;
-  name: string;
-  location: { address?: string; formatted_address?: string };
-  geocodes: { main: { latitude: number; longitude: number } };
-  categories: { name: string }[];
-}
+export type { PlaceSuggestion as SearchResult };
 
 interface SearchBarProps {
-  onSelectResult: (result: SearchResult) => void;
+  onSelectResult: (result: PlaceSuggestion) => void;
 }
 
 const CATEGORIES = [
@@ -28,7 +23,7 @@ const CATEGORIES = [
 
 export default function SearchBar({ onSelectResult }: SearchBarProps) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<PlaceSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [focused, setFocused] = useState(false);
@@ -44,15 +39,11 @@ export default function SearchBar({ onSelectResult }: SearchBarProps) {
 
       setLoading(true);
       try {
-        const params = new URLSearchParams();
-        if (query) params.append('query', query);
-        if (activeCategory) params.append('category', activeCategory);
-
-        const res = await fetch(`/.netlify/functions/places-search?${params.toString()}`);
-        const data = await res.json();
-        setResults(data.results || []);
+        const found = await searchPlaces(query, { category: activeCategory || undefined, limit: 10 });
+        setResults(found);
       } catch (err) {
         console.error('Search error:', err);
+        setResults([]);
       } finally {
         setLoading(false);
       }
@@ -170,11 +161,11 @@ export default function SearchBar({ onSelectResult }: SearchBarProps) {
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-foreground">{res.name}</span>
                       <span className="block truncate text-xs text-muted-foreground">
-                        {res.location.formatted_address || res.location.address || 'Address unavailable'}
+                        {res.address || 'Address unavailable'}
                       </span>
-                      {res.categories?.[0] && (
+                      {res.category && (
                         <Badge variant="outline" className="mt-1.5 h-4 text-[10px]">
-                          {res.categories[0].name}
+                          {res.category}
                         </Badge>
                       )}
                     </span>

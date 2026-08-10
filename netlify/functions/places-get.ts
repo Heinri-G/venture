@@ -1,5 +1,8 @@
 import { Handler } from '@netlify/functions';
 
+const PLACES_API_BASE = 'https://places-api.foursquare.com';
+const PLACES_API_VERSION = '2025-06-17';
+
 interface PlaceDetails {
   fsq_id: string;
   name: string;
@@ -15,7 +18,7 @@ interface PlaceDetails {
   description?: string;
 }
 
-function getFsqId(event: { body: string | null; queryStringParameters: Record<string, string> | null }): string | null {
+function getFsqId(event: { body: string | null; queryStringParameters: Record<string, string | undefined> | null }): string | null {
   if (event.body) {
     try {
       const body = JSON.parse(event.body) as { fsq_id?: string; id?: string };
@@ -46,11 +49,6 @@ function getDemoDetails(fsqId: string): PlaceDetails {
   };
 }
 
-function toPhotoUrl(prefix: string | undefined, suffix: string | undefined): string | undefined {
-  if (!prefix || !suffix) return undefined;
-  return `${prefix}original${suffix}`;
-}
-
 export const handler: Handler = async (event) => {
   const fsqId = getFsqId(event);
 
@@ -72,14 +70,20 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    const url = new URL(`https://api.foursquare.com/v3/places/${encodeURIComponent(fsqId)}`);
+    const url = new URL(`${PLACES_API_BASE}/places/${encodeURIComponent(fsqId)}`);
+    // Only request fields available on the free tier; premium fields
+    // (photos, hours, rating, description) require paid API credits.
     url.searchParams.set(
       'fields',
-      'fsq_id,name,location,geocodes,categories,photos,rating,hours,description,website,tel'
+      'fsq_place_id,name,latitude,longitude,categories,location,website,tel'
     );
 
     const res = await fetch(url.toString(), {
-      headers: { accept: 'application/json', Authorization: apiKey },
+      headers: {
+        accept: 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        'X-Places-Api-Version': PLACES_API_VERSION,
+      },
     });
 
     if (!res.ok) {
@@ -92,21 +96,17 @@ export const handler: Handler = async (event) => {
     const data = await res.json();
 
     const details: PlaceDetails = {
-      fsq_id: data.fsq_id || fsqId,
+      fsq_id: data.fsq_place_id || fsqId,
       name: data.name || 'Unknown place',
       address:
         data.location?.formatted_address ||
         data.location?.address ||
         'Address unavailable',
-      latitude: data.geocodes?.main?.latitude ?? 0,
-      longitude: data.geocodes?.main?.longitude ?? 0,
+      latitude: data.latitude ?? 0,
+      longitude: data.longitude ?? 0,
       category: data.categories?.[0]?.name || 'Venue',
       phone: data.tel || undefined,
       website: data.website || undefined,
-      hours: data.hours?.display || undefined,
-      photoUrl: toPhotoUrl(data.photos?.[0]?.prefix, data.photos?.[0]?.suffix),
-      rating: data.rating,
-      description: data.description || undefined,
     };
 
     return {

@@ -38,21 +38,14 @@ export default function PlacesSearch({
 
   useEffect(() => {
     const trimmed = query.trim();
-    if (trimmed.length < MIN_QUERY_LENGTH) {
-      setSuggestions([]);
-      setLoading(false);
-      setError(null);
-      setSearched(false);
-      setOpen(false);
-      return;
-    }
+    if (trimmed.length < MIN_QUERY_LENGTH) return;
 
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setSearched(false);
 
     const timer = setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      setSearched(false);
       try {
         const results = await searchPlaces(trimmed, {
           latitude,
@@ -78,6 +71,19 @@ export default function PlacesSearch({
       clearTimeout(timer);
     };
   }, [query, latitude, longitude]);
+
+  const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setQuery(value);
+    if (value.trim().length < MIN_QUERY_LENGTH) {
+      setSuggestions([]);
+      setLoading(false);
+      setError(null);
+      setSearched(false);
+      setOpen(false);
+      setActiveIndex(-1);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -153,7 +159,7 @@ export default function PlacesSearch({
     inputRef.current?.focus();
   };
 
-  const showDropdown = open && (loading || error || searched);
+  const showDropdown = Boolean(open && (loading || error || searched));
 
   return (
     <div
@@ -166,7 +172,7 @@ export default function PlacesSearch({
           ref={inputRef}
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={handleQueryChange}
           onFocus={() => {
             setOpen(true);
             setActiveIndex(-1);

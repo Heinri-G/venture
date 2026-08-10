@@ -11,10 +11,10 @@ interface BottomNavProps {
 
 export default function BottomNav({ activeTab, onTabChange, savedCount = 0 }: BottomNavProps) {
   const tabs = [
-    { id: 'map', label: 'Explore', icon: Map },
+    { id: 'map', label: 'Explore', icon: Map, badge: null },
     { id: 'saved', label: 'Saved', icon: Bookmark, badge: savedCount > 0 ? savedCount : null },
-    { id: 'adventures', label: 'Adventures', icon: Compass },
-    { id: 'friends', label: 'Social', icon: Users },
+    { id: 'adventures', label: 'Adventures', icon: Compass, badge: null },
+    { id: 'friends', label: 'Social', icon: Users, badge: null },
   ] as const;
 
   return (

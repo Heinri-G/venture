@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import MarkerClusterGroup from 'react-leaflet-cluster';
@@ -8,6 +8,8 @@ import { Navigation, Home } from 'lucide-react';
 import { supabase } from '../lib/supabase/client';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import PlacesSearch from './PlacesSearch';
+import type { PlaceResult } from '../lib/places';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -36,6 +38,7 @@ interface MapViewProps {
   onSelectMarker?: (markerId: string) => void;
   onMapClick?: (lat: number, lng: number) => void;
   fullscreen?: boolean;
+  showSearch?: boolean;
 }
 
 const DEFAULT_CENTER: [number, number] = [52.52, 13.405]; // Berlin
@@ -52,22 +55,31 @@ function MapController({
   mapRef,
   selectedLocation,
   onMapClick,
+  onMoveEnd,
 }: {
   mapRef: React.MutableRefObject<L.Map | null>;
   selectedLocation: MapViewProps['selectedLocation'];
   onMapClick?: (lat: number, lng: number) => void;
+  onMoveEnd?: (center: { latitude: number; longitude: number }) => void;
 }) {
   const map = useMap();
 
   useEffect(() => {
     mapRef.current = map;
     const handleClick = (e: L.LeafletMouseEvent) => onMapClick?.(e.latlng.lat, e.latlng.lng);
+    const handleMoveEnd = () => {
+      const center = map.getCenter();
+      onMoveEnd?.({ latitude: center.lat, longitude: center.lng });
+    };
     map.on('click', handleClick);
+    map.on('moveend', handleMoveEnd);
+    handleMoveEnd();
     return () => {
       map.off('click', handleClick);
+      map.off('moveend', handleMoveEnd);
       mapRef.current = null;
     };
-  }, [map, mapRef, onMapClick]);
+  }, [map, mapRef, onMapClick, onMoveEnd]);
 
   // Fly to a selected location whenever it changes.
   useEffect(() => {
@@ -84,10 +96,13 @@ export default function MapView({
   onSelectMarker,
   onMapClick,
   fullscreen = false,
+  showSearch = false,
 }: MapViewProps) {
   const navigate = useNavigate();
   const mapRef = useRef<L.Map | null>(null);
   const [loadedMarkers, setLoadedMarkers] = useState<MapMarker[]>([]);
+  const [searchMarkers, setSearchMarkers] = useState<MapMarker[]>([]);
+  const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const hasExternalMarkers = markers !== undefined;
 
@@ -148,10 +163,30 @@ export default function MapView({
     );
   };
 
-  const shownMarkers = markers ?? loadedMarkers;
-  const center: [number, number] = shownMarkers.length
-    ? [shownMarkers[0].latitude, shownMarkers[0].longitude]
-    : DEFAULT_CENTER;
+  const handlePlaceSelect = (place: PlaceResult) => {
+    const marker: MapMarker = {
+      id: place.fsq_id || `search-${Date.now()}`,
+      name: place.name,
+      latitude: place.latitude,
+      longitude: place.longitude,
+      category: place.category,
+      photoUrl: place.photoUrl,
+      placeId: place.fsq_id,
+    };
+    setSearchMarkers((prev) => (prev.some((m) => m.id === marker.id) ? prev : [...prev, marker]));
+    mapRef.current?.flyTo([place.latitude, place.longitude], 14, { duration: 1.5 });
+  };
+
+  const shownMarkers = useMemo(
+    () => (markers ? markers : [...loadedMarkers, ...searchMarkers]),
+    [markers, loadedMarkers, searchMarkers]
+  );
+  const center: [number, number] = useMemo(() => {
+    const baseMarkers = markers ?? loadedMarkers;
+    return baseMarkers.length
+      ? [baseMarkers[0].latitude, baseMarkers[0].longitude]
+      : DEFAULT_CENTER;
+  }, [markers, loadedMarkers]);
 
   return (
     <div
@@ -171,7 +206,12 @@ export default function MapView({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        <MapController mapRef={mapRef} selectedLocation={selectedLocation} onMapClick={onMapClick} />
+        <MapController
+          mapRef={mapRef}
+          selectedLocation={selectedLocation}
+          onMapClick={onMapClick}
+          onMoveEnd={setMapCenter}
+        />
 
         <MarkerClusterGroup chunkedLoading spiderfyOnMaxZoom disableClusteringAtZoom={14}>
           {shownMarkers.map((m) => (
@@ -199,6 +239,15 @@ export default function MapView({
           ))}
         </MarkerClusterGroup>
       </MapContainer>
+
+      {showSearch && (
+        <PlacesSearch
+          onPlaceSelect={handlePlaceSelect}
+          latitude={mapCenter?.latitude}
+          longitude={mapCenter?.longitude}
+          className="inset-x-4 top-[4.5rem]"
+        />
+      )}
 
       {fullscreen && (
         <Button

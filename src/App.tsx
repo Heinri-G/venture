@@ -17,7 +17,7 @@ export default function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<PageTransition><Home /></PageTransition>} />
-          <Route path="/map" element={<div className="h-[calc(100dvh-4rem)] w-full"><MapView fullscreen /></div>} />
+          <Route path="/map" element={<div className="h-[calc(100dvh-4rem)] w-full"><MapView fullscreen showSearch /></div>} />
           <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
           <Route path="/signup" element={<PageTransition><Signup /></PageTransition>} />
           <Route path="/profile" element={<ProtectedRoute><PageTransition><Profile /></PageTransition></ProtectedRoute>} />
