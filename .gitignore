@@ -42,3 +42,8 @@ yarn-error.log*
 
 # Local Netlify folder
 .env
+
+# Tooling logs & session history
+.playwright-mcp/
+chat_history/
+session-*.md

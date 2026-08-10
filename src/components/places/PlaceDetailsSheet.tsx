@@ -1,8 +1,14 @@
-'use client';
-
 import React, { useState } from 'react';
-import { X, Star, MapPin, BookmarkCheck, Heart } from 'lucide-react';
+import { Star, MapPin, BookmarkCheck, Heart } from 'lucide-react';
+import { toast } from 'sonner';
 import { savePlace, PlaceInput } from '@/app/actions/places';
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 interface PlaceDetailsSheetProps {
   place: {
@@ -21,6 +27,7 @@ interface PlaceDetailsSheetProps {
 }
 
 export default function PlaceDetailsSheet({ place, onClose, onSavedSuccess }: PlaceDetailsSheetProps) {
+  const [open, setOpen] = useState(true);
   const [rating, setRating] = useState<number>(5);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -28,6 +35,13 @@ export default function PlaceDetailsSheet({ place, onClose, onSavedSuccess }: Pl
   const [error, setError] = useState<string | null>(null);
 
   if (!place) return null;
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next) {
+      setOpen(false);
+      window.setTimeout(onClose, 200);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -48,120 +62,113 @@ export default function PlaceDetailsSheet({ place, onClose, onSavedSuccess }: Pl
     setSaving(false);
     if (res.error) {
       setError(res.error);
-    } else {
-      setSaved(true);
-      if (onSavedSuccess) onSavedSuccess();
-      setTimeout(() => {
-        onClose();
-        setSaved(false);
-      }, 1200);
+      toast.error('Could not save place', { description: res.error });
+      return;
     }
+
+    setSaved(true);
+    onSavedSuccess?.();
+    toast.success('Saved to your places', { description: place.name });
+    window.setTimeout(() => handleOpenChange(false), 1000);
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 p-4 sm:p-6 max-w-lg mx-auto animate-slide-up">
-      <div className="glass rounded-3xl p-6 shadow-2xl border border-white/20 flex flex-col gap-4 relative overflow-hidden max-h-[85vh] overflow-y-auto">
-        {/* Header bar */}
-        <div className="flex items-center justify-between pb-2 border-b border-border/40">
-          <div className="flex items-center gap-2">
-            <span className="text-xs uppercase font-bold tracking-wider text-primary bg-primary/10 px-2.5 py-1 rounded-lg">
-              {place.category || 'Location'}
-            </span>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-surface flex items-center justify-center text-muted hover:text-foreground transition-base"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Photo Header */}
-        {place.photo_url && (
-          <div className="w-full h-40 rounded-2xl overflow-hidden relative border border-white/10 shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={place.photo_url} alt={place.name} className="w-full h-full object-cover" />
-          </div>
-        )}
-
-        {/* Title & Address */}
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">{place.name}</h2>
-          {place.address && (
-            <p className="text-sm text-muted flex items-center gap-1.5 mt-1">
-              <MapPin size={16} className="text-primary shrink-0" />
-              {place.address}
-            </p>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetContent side="bottom" className="mx-auto max-w-md gap-0 rounded-t-2xl p-0 sm:max-w-lg">
+        <div className="flex max-h-[80dvh] flex-col gap-4 overflow-y-auto px-4 pb-6 pt-6">
+          {place.photo_url && (
+            <div className="h-40 w-full shrink-0 overflow-hidden rounded-xl border">
+              <img
+                src={place.photo_url}
+                alt={place.name}
+                className="h-full w-full object-cover"
+              />
+            </div>
           )}
-        </div>
 
-        {place.description && (
-          <p className="text-sm text-foreground/80 leading-relaxed bg-surface/50 p-3 rounded-2xl">
-            {place.description}
-          </p>
-        )}
-
-        {/* Personal Rating */}
-        <div className="flex flex-col gap-2">
-          <label className="text-xs font-bold uppercase tracking-wider text-muted">Your Rating</label>
-          <div className="flex gap-2">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                type="button"
-                onClick={() => setRating(star)}
-                className="p-1 hover:scale-110 transition-base"
-              >
-                <Star
-                  size={26}
-                  className={star <= rating ? 'fill-accent text-accent' : 'text-muted/40'}
-                />
-              </button>
-            ))}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <SheetTitle className="text-xl">{place.name}</SheetTitle>
+              {place.address && (
+                <SheetDescription className="mt-1 flex items-center gap-1.5">
+                  <MapPin className="size-4 shrink-0 text-primary" />
+                  {place.address}
+                </SheetDescription>
+              )}
+            </div>
+            {place.category && (
+              <Badge variant="secondary" className="shrink-0">
+                {place.category}
+              </Badge>
+            )}
           </div>
-        </div>
 
-        {/* Personal Notes */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-bold uppercase tracking-wider text-muted">Personal Notes</label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="What makes this place special? Recommended dishes, best time to visit..."
-            rows={3}
-            className="w-full rounded-2xl p-3 bg-surface border border-border/60 text-sm outline-none focus:ring-2 focus:ring-primary/40 transition-base resize-none"
-          />
-        </div>
+          {place.description && (
+            <p className="text-sm leading-relaxed text-muted-foreground">{place.description}</p>
+          )}
 
-        {error && (
-          <p className="text-xs font-semibold text-red-500 bg-red-500/10 p-2.5 rounded-xl text-center">
-            {error}
-          </p>
-        )}
+          <Separator />
 
-        {/* Actions */}
-        <div className="flex gap-3 mt-2">
-          <button
+          <div className="flex flex-col gap-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Your rating</Label>
+            <div className="flex gap-1.5">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRating(star)}
+                  aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                  className="rounded-md p-1 transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={cn(
+                      'size-6',
+                      star <= rating
+                        ? 'fill-primary text-primary'
+                        : 'text-muted-foreground/30'
+                    )}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="place-notes" className="text-xs uppercase tracking-wider text-muted-foreground">
+              Personal notes
+            </Label>
+            <Textarea
+              id="place-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="What makes this place special? Best time to visit..."
+              rows={3}
+              className="resize-none"
+            />
+          </div>
+
+          {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+
+          <Button
             onClick={handleSave}
             disabled={saving || saved}
-            className={`flex-1 py-3.5 px-6 rounded-2xl font-bold text-white flex items-center justify-center gap-2 shadow-lg transition-base ${
-              saved
-                ? 'bg-emerald-600 shadow-emerald-500/20'
-                : 'bg-primary hover:bg-primary-dark shadow-primary/30'
-            }`}
+            size="lg"
+            className="h-12 w-full rounded-full"
           >
             {saved ? (
               <>
-                <BookmarkCheck size={20} /> Saved to Wanderlust!
+                <BookmarkCheck />
+                Saved
               </>
             ) : (
               <>
-                <Heart size={20} /> {saving ? 'Saving...' : 'Save Place'}
+                <Heart />
+                {saving ? 'Saving...' : 'Save Place'}
               </>
             )}
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }

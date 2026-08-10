@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { supabase } from './lib/supabase/client';
-import { useNavigate, Link } from 'react-router-dom';
+import AuthShell from './components/auth/AuthShell';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
+import { Label } from './components/ui/label';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -14,21 +19,56 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
-      alert('Login failed: ' + error.message);
+      toast.error('Login failed', { description: error.message });
       return;
     }
+    toast.success('Welcome back!');
     navigate('/');
   };
 
   return (
-    <div className="container">
-      <form onSubmit={onSubmit} className="max-w-md mx-auto">
-        <h2 className="text-xl font-semibold mb-4">Login</h2>
-        <label className="block mb-2">Email<input className="w-full p-2 border rounded" value={email} onChange={e => setEmail(e.target.value)} /></label>
-        <label className="block mb-4">Password<input type="password" className="w-full p-2 border rounded" value={password} onChange={e => setPassword(e.target.value)} /></label>
-        <button className="px-4 py-2 bg-indigo-600 text-white rounded" disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</button>
-        <p className="mt-4">Don\'t have an account? <Link to="/signup" className="text-indigo-600">Sign up</Link></p>
+    <AuthShell
+      title="Welcome back"
+      description="Sign in to continue to Venture"
+      footer={
+        <p className="text-sm text-muted-foreground">
+          Don&apos;t have an account?{' '}
+          <Link to="/signup" className="font-medium text-primary hover:underline">
+            Sign up
+          </Link>
+        </p>
+      }
+    >
+      <form onSubmit={onSubmit} className="flex flex-col gap-5">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="you@example.com"
+            className="h-10 px-3"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            required
+            autoComplete="current-password"
+            className="h-10 px-3"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
+        <Button type="submit" size="lg" className="mt-1 h-11 rounded-full" disabled={loading}>
+          {loading ? 'Signing in...' : 'Sign in'}
+        </Button>
       </form>
-    </div>
+    </AuthShell>
   );
 }
