@@ -76,6 +76,7 @@ CREATE TABLE public.adventures (
   cover_photo_url TEXT,
   visibility TEXT NOT NULL DEFAULT 'private' CHECK (visibility IN ('private', 'shared', 'public')),
   allow_collaboration BOOLEAN DEFAULT false,
+  public_link_token TEXT UNIQUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -131,11 +132,14 @@ CREATE TABLE public.adventure_shares (
   adventure_id UUID NOT NULL REFERENCES public.adventures(id) ON DELETE CASCADE,
   shared_with_user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
   shared_with_group_id UUID REFERENCES public.groups(id) ON DELETE CASCADE,
+  can_edit BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   CHECK (
     (shared_with_user_id IS NOT NULL AND shared_with_group_id IS NULL) OR
     (shared_with_user_id IS NULL AND shared_with_group_id IS NOT NULL)
-  )
+  ),
+  UNIQUE(adventure_id, shared_with_user_id),
+  UNIQUE(adventure_id, shared_with_group_id)
 );
 
 -- =============================================
@@ -153,9 +157,94 @@ ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.group_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.adventure_shares ENABLE ROW LEVEL SECURITY;
 
--- Profiles: Users can read public profiles, update their own
+-- =============================================
+-- RLS helper functions
+-- SECURITY DEFINER so policies can reason about shares/group membership without
+-- recursing through RLS on the referenced tables. They only return booleans
+-- derived from auth.uid(), so no data can leak.
+-- =============================================
+
+CREATE OR REPLACE FUNCTION public.adventure_visible_to_user(target_adventure_id UUID)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.adventures a
+    WHERE a.id = target_adventure_id
+      AND (
+        a.owner_id = auth.uid()
+        OR a.visibility = 'public'
+        OR (
+          a.visibility = 'shared'
+          AND (
+            EXISTS (
+              SELECT 1 FROM public.adventure_shares s
+              WHERE s.adventure_id = a.id
+                AND s.shared_with_user_id = auth.uid()
+            )
+            OR EXISTS (
+              SELECT 1 FROM public.adventure_shares s
+              JOIN public.group_members gm ON gm.group_id = s.shared_with_group_id
+              WHERE s.adventure_id = a.id
+                AND gm.user_id = auth.uid()
+            )
+          )
+        )
+      )
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.adventure_editable_by_user(target_adventure_id UUID)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.adventures a
+    WHERE a.id = target_adventure_id
+      AND (
+        a.owner_id = auth.uid()
+        OR (
+          a.visibility = 'shared'
+          AND a.allow_collaboration
+          AND (
+            EXISTS (
+              SELECT 1 FROM public.adventure_shares s
+              WHERE s.adventure_id = a.id
+                AND s.shared_with_user_id = auth.uid()
+                AND s.can_edit
+            )
+            OR EXISTS (
+              SELECT 1 FROM public.adventure_shares s
+              JOIN public.group_members gm ON gm.group_id = s.shared_with_group_id
+              WHERE s.adventure_id = a.id
+                AND gm.user_id = auth.uid()
+                AND s.can_edit
+            )
+          )
+        )
+      )
+  );
+$$;
+
+-- Profiles: Users can read public profiles, update their own.
+-- Owners of public adventures stay identifiable on the public view page even
+-- if they chose a private profile elsewhere.
 CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles
-  FOR SELECT USING (is_public = true OR id = auth.uid());
+  FOR SELECT USING (
+    is_public = true
+    OR id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM public.adventures a
+      WHERE a.owner_id = profiles.id
+        AND a.visibility = 'public'
+    )
+  );
 
 CREATE POLICY "Users can update own profile" ON public.profiles
   FOR UPDATE USING (id = auth.uid());
@@ -167,9 +256,20 @@ CREATE POLICY "Places are viewable by everyone" ON public.places
 CREATE POLICY "Authenticated users can insert places" ON public.places
   FOR INSERT TO authenticated WITH CHECK (true);
 
--- Saved Places: Users can only CRUD their own
+-- Saved Places: Users can CRUD their own. Rows that back an accessible
+-- adventure's places must be readable so shared/public adventures render their
+-- place details, and copied adventures keep their linked places.
 CREATE POLICY "Users can view own saved places" ON public.saved_places
-  FOR SELECT USING (user_id = auth.uid());
+  FOR SELECT USING (
+    user_id = auth.uid()
+    OR EXISTS (
+      SELECT 1
+      FROM public.adventure_places ap
+      JOIN public.adventures a ON a.id = ap.adventure_id
+      WHERE ap.saved_place_id = saved_places.id
+        AND public.adventure_visible_to_user(a.id)
+    )
+  );
 
 CREATE POLICY "Users can insert own saved places" ON public.saved_places
   FOR INSERT WITH CHECK (user_id = auth.uid());
@@ -180,47 +280,33 @@ CREATE POLICY "Users can update own saved places" ON public.saved_places
 CREATE POLICY "Users can delete own saved places" ON public.saved_places
   FOR DELETE USING (user_id = auth.uid());
 
--- Adventures: Owner can do everything, public ones are readable
-CREATE POLICY "Users can view own or public adventures" ON public.adventures
-  FOR SELECT USING (
-    owner_id = auth.uid()
-    OR visibility = 'public'
-  );
+-- Adventures: Owner can do everything, public/shared ones are readable
+CREATE POLICY "Users can view accessible adventures" ON public.adventures
+  FOR SELECT USING (public.adventure_visible_to_user(id));
 
 CREATE POLICY "Users can insert own adventures" ON public.adventures
   FOR INSERT WITH CHECK (owner_id = auth.uid());
 
-CREATE POLICY "Users can update own adventures" ON public.adventures
-  FOR UPDATE USING (owner_id = auth.uid());
+-- Owners always edit; shared collaborators edit only when the adventure is
+-- shared, allow_collaboration is on, and their share grants can_edit.
+CREATE POLICY "Users can update adventures they can edit" ON public.adventures
+  FOR UPDATE USING (public.adventure_editable_by_user(id));
 
 CREATE POLICY "Users can delete own adventures" ON public.adventures
   FOR DELETE USING (owner_id = auth.uid());
 
--- Adventure Places: Based on adventure ownership
+-- Adventure Places: Based on adventure visibility/edit access
 CREATE POLICY "Users can view adventure places for accessible adventures" ON public.adventure_places
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.adventures a
-      WHERE a.id = adventure_id
-      AND (a.owner_id = auth.uid() OR a.visibility = 'public')
-    )
-  );
+  FOR SELECT USING (public.adventure_visible_to_user(adventure_id));
 
-CREATE POLICY "Users can insert to own adventures" ON public.adventure_places
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.adventures a
-      WHERE a.id = adventure_id AND a.owner_id = auth.uid()
-    )
-  );
+CREATE POLICY "Users can add places to adventures they can edit" ON public.adventure_places
+  FOR INSERT WITH CHECK (public.adventure_editable_by_user(adventure_id));
 
-CREATE POLICY "Users can delete from own adventures" ON public.adventure_places
-  FOR DELETE USING (
-    EXISTS (
-      SELECT 1 FROM public.adventures a
-      WHERE a.id = adventure_id AND a.owner_id = auth.uid()
-    )
-  );
+CREATE POLICY "Users can remove places from adventures they can edit" ON public.adventure_places
+  FOR DELETE USING (public.adventure_editable_by_user(adventure_id));
+
+CREATE POLICY "Users can update places in adventures they can edit" ON public.adventure_places
+  FOR UPDATE USING (public.adventure_editable_by_user(adventure_id));
 
 -- Friends: Both parties can view, requester can insert/update
 CREATE POLICY "Users can view own friendships" ON public.friends
@@ -236,38 +322,54 @@ CREATE POLICY "Either party can delete friendship" ON public.friends
   FOR DELETE USING (requester_id = auth.uid() OR addressee_id = auth.uid());
 
 -- Groups: Members can view, creator is admin
-CREATE POLICY "Group members can view groups" ON public.groups
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.group_members gm
-      WHERE gm.group_id = id AND gm.user_id = auth.uid()
-    )
+-- Membership is checked via a SECURITY DEFINER helper so the policy does not
+-- recurse through the group_members RLS policy (which would otherwise trigger
+-- "infinite recursion detected in policy").
+CREATE OR REPLACE FUNCTION public.user_is_group_member(target_group_id UUID)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.group_members gm
+    WHERE gm.group_id = target_group_id AND gm.user_id = auth.uid()
   );
+$$;
+
+CREATE POLICY "Group members can view groups" ON public.groups
+  FOR SELECT USING (public.user_is_group_member(id));
 
 CREATE POLICY "Authenticated users can create groups" ON public.groups
   FOR INSERT TO authenticated WITH CHECK (created_by = auth.uid());
 
 -- Group Members: Members can view co-members
 CREATE POLICY "Group members can view members" ON public.group_members
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.group_members gm
-      WHERE gm.group_id = group_id AND gm.user_id = auth.uid()
-    )
-  );
+  FOR SELECT USING (public.user_is_group_member(group_id));
 
--- Adventure Shares: Participants can view
-CREATE POLICY "Users can view shares involving them" ON public.adventure_shares
-  FOR SELECT USING (
-    shared_with_user_id = auth.uid()
-    OR EXISTS (
+-- Adventure Shares: Owner can manage, anyone with access can view
+CREATE POLICY "Users can view shares of adventures they can access" ON public.adventure_shares
+  FOR SELECT USING (public.adventure_visible_to_user(adventure_id));
+
+CREATE POLICY "Adventure owners can share" ON public.adventure_shares
+  FOR INSERT WITH CHECK (
+    EXISTS (
       SELECT 1 FROM public.adventures a
       WHERE a.id = adventure_id AND a.owner_id = auth.uid()
     )
   );
 
-CREATE POLICY "Adventure owners can share" ON public.adventure_shares
-  FOR INSERT WITH CHECK (
+CREATE POLICY "Adventure owners can update shares" ON public.adventure_shares
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM public.adventures a
+      WHERE a.id = adventure_id AND a.owner_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Adventure owners can remove shares" ON public.adventure_shares
+  FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM public.adventures a
       WHERE a.id = adventure_id AND a.owner_id = auth.uid()
@@ -279,6 +381,7 @@ CREATE POLICY "Adventure owners can share" ON public.adventure_shares
 -- =============================================
 CREATE INDEX idx_saved_places_user ON public.saved_places(user_id);
 CREATE INDEX idx_adventures_owner ON public.adventures(owner_id);
+CREATE INDEX idx_adventures_public_link_token ON public.adventures(public_link_token);
 CREATE INDEX idx_adventure_places_adventure ON public.adventure_places(adventure_id);
 CREATE INDEX idx_friends_users ON public.friends(requester_id, addressee_id);
 CREATE INDEX idx_group_members_group ON public.group_members(group_id);
@@ -298,8 +401,15 @@ GRANT UPDATE ON public.profiles TO authenticated;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.saved_places TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.adventures TO authenticated;
-GRANT SELECT, INSERT, DELETE ON public.adventure_places TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.adventure_places TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.friends TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.groups TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.group_members TO authenticated;
-GRANT SELECT, INSERT ON public.adventure_shares TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.adventure_shares TO authenticated;
+
+-- Anonymous visitors need read access to render public adventure links. RLS
+-- ("adventure_visible_to_user") still limits anon to public adventures and
+-- their linked places; these grants only unlock the tables.
+GRANT SELECT ON public.adventures TO anon;
+GRANT SELECT ON public.adventure_places TO anon;
+GRANT SELECT ON public.saved_places TO anon;

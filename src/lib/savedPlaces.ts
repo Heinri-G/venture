@@ -180,6 +180,138 @@ export async function removeSavedPlace(
   return {};
 }
 
+export type SavedPlacesSortBy = 'recent' | 'rated' | 'alphabetical' | 'distance';
+
+export interface SavedPlaceWithDetails {
+  id: string;
+  user_id: string;
+  place_id: string;
+  rating: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  place: {
+    id: string;
+    foursquare_fsq_id: string | null;
+    name: string;
+    address: string | null;
+    latitude: number;
+    longitude: number;
+    category: string | null;
+    photo_url: string | null;
+    created_at: string;
+  };
+}
+
+/**
+ * Fetches the current user's saved places with their canonical place data,
+ * paginated in batches. Supports a category filter and server-side sorting.
+ * `sortBy === 'distance'` and `sortBy === 'alphabetical'` sort client-side
+ * (they require the full set), so they fall back to server-side `recent`
+ * ordering here.
+ */
+export async function fetchSavedPlaces(
+  userId: string,
+  page: number = 0,
+  pageSize: number = 20,
+  filterCategory?: string,
+  sortBy: SavedPlacesSortBy = 'recent'
+): Promise<{ data: SavedPlaceWithDetails[]; error?: string; totalCount: number }> {
+  let query = supabase
+    .from('saved_places')
+    .select(
+      `
+      id, user_id, place_id, rating, notes, created_at, updated_at,
+      place:places!inner(
+        id, foursquare_fsq_id, name, address, latitude, longitude,
+        category, photo_url, created_at
+      )
+    `,
+      { count: 'exact' }
+    )
+    .eq('user_id', userId);
+
+  if (filterCategory) {
+    query = query.eq('place.category', filterCategory);
+  }
+
+  if (sortBy === 'recent') {
+    query = query.order('created_at', { ascending: false });
+  } else if (sortBy === 'rated') {
+    query = query.order('rating', { ascending: false, nullsFirst: false });
+  }
+
+  const offset = page * pageSize;
+  query = query.range(offset, offset + pageSize - 1);
+
+  const { data, error, count } = await query;
+
+  if (error) {
+    console.error('Error fetching saved places:', error);
+    return { data: [], error: error.message, totalCount: 0 };
+  }
+  return { data: (data as unknown as SavedPlaceWithDetails[]) || [], totalCount: count ?? 0 };
+}
+
+/** Updates a saved-place row's rating and/or notes. */
+export async function updateSavedPlace(
+  savedPlaceId: string,
+  updates: { rating?: number | null; notes?: string | null }
+): Promise<{ data?: SavedPlace; error?: string }> {
+  const { data, error } = await supabase
+    .from('saved_places')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', savedPlaceId)
+    .select()
+    .single();
+
+  if (error) {
+    return { error: error.message };
+  }
+  return { data: data ?? undefined };
+}
+
+/** Deletes a saved-place row by its saved-place id. */
+export async function deleteSavedPlace(
+  savedPlaceId: string
+): Promise<{ error?: string }> {
+  const { error } = await supabase
+    .from('saved_places')
+    .delete()
+    .eq('id', savedPlaceId);
+
+  if (error) {
+    return { error: error.message };
+  }
+  return {};
+}
+
+/** Returns the distinct categories among the current user's saved places. */
+export async function fetchSavedPlaceCategories(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('saved_places')
+    .select('place:places(category)')
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('Error fetching saved place categories:', error);
+    return [];
+  }
+
+  const categories = [
+    ...new Set(
+      (data as unknown as { place: { category: string | null } | null }[]).map(
+        (sp) => sp.place?.category
+      )
+    ),
+  ].filter((c): c is string => Boolean(c));
+
+  return categories.sort();
+}
+
 /** Lists the current user's saved places with their canonical place data. */
 export async function getSavedPlaces(userId: string): Promise<SavedPlacesResult[]> {
   const { data, error } = await supabase

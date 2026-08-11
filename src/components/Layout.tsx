@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { Compass, LogOut, Map, MapPin, Menu, Moon, Sun, User, X } from 'lucide-react';
+import { Bookmark, Compass, LogOut, Map, MapPin, Menu, Moon, Route, Sun, User, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
@@ -21,6 +21,8 @@ import { cn } from '../lib/utils';
 const NAV_LINKS = [
   { to: '/', label: 'Home', icon: Map },
   { to: '/map', label: 'Map', icon: MapPin },
+  { to: '/saved-places', label: 'Saved', icon: Bookmark },
+  { to: '/adventures', label: 'Adventures', icon: Route },
 ];
 
 function getInitials(user: { email?: string; user_metadata?: Record<string, unknown> }): string {
