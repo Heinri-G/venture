@@ -124,6 +124,11 @@ file_size_limit = "50MiB"
 # allowed_mime_types = ["image/png", "image/jpeg"]
 # objects_path = "./images"
 
+# Group avatars (created in the Supabase dashboard with public read access in
+# hosted projects; this mirrors the `avatars` bucket from Task 1).
+[storage.buckets.groups]
+public = true
+
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]
 enabled = true

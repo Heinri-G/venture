@@ -1,4 +1,5 @@
 import { supabase } from './supabase/client';
+import { createNotification } from './notifications';
 import type {
   Adventure,
   AdventureShareRow,
@@ -222,6 +223,19 @@ export async function shareWithFriends(
   canEdit: boolean
 ): Promise<{ error?: string }> {
   if (friendIds.length === 0) return {};
+
+  const { data: existing } = await supabase
+    .from('adventure_shares')
+    .select('shared_with_user_id')
+    .eq('adventure_id', adventureId);
+
+  const alreadyShared = new Set(
+    (existing ?? [])
+      .map((row) => row.shared_with_user_id as string | null)
+      .filter((id): id is string => Boolean(id))
+  );
+  const newFriendIds = friendIds.filter((id) => !alreadyShared.has(id));
+
   const shares = friendIds.map((friendId) => ({
     adventure_id: adventureId,
     shared_with_user_id: friendId,
@@ -236,6 +250,23 @@ export async function shareWithFriends(
     console.error('Error sharing with friends:', error);
     return { error: error.message };
   }
+
+  if (newFriendIds.length > 0) {
+    const { data: authData } = await supabase.auth.getUser();
+    const actorId = authData.user?.id;
+    if (actorId) {
+      await Promise.all(
+        newFriendIds.map((friendId) =>
+          createNotification({
+            userId: friendId,
+            type: 'adventure_shared',
+            actorId,
+            entityId: adventureId,
+          })
+        )
+      );
+    }
+  }
   return {};
 }
 
@@ -246,6 +277,19 @@ export async function shareWithGroups(
   canEdit: boolean
 ): Promise<{ error?: string }> {
   if (groupIds.length === 0) return {};
+
+  const { data: existing } = await supabase
+    .from('adventure_shares')
+    .select('shared_with_group_id')
+    .eq('adventure_id', adventureId);
+
+  const alreadyShared = new Set(
+    (existing ?? [])
+      .map((row) => row.shared_with_group_id as string | null)
+      .filter((id): id is string => Boolean(id))
+  );
+  const newGroupIds = groupIds.filter((id) => !alreadyShared.has(id));
+
   const shares = groupIds.map((groupId) => ({
     adventure_id: adventureId,
     shared_with_group_id: groupId,
@@ -259,6 +303,32 @@ export async function shareWithGroups(
   if (error) {
     console.error('Error sharing with groups:', error);
     return { error: error.message };
+  }
+
+  if (newGroupIds.length > 0) {
+    const { data: authData } = await supabase.auth.getUser();
+    const actorId = authData.user?.id;
+    if (actorId) {
+      const { data: groupMembers } = await supabase
+        .from('group_members')
+        .select('user_id')
+        .in('group_id', newGroupIds);
+
+      const memberIds = [
+        ...new Set((groupMembers ?? []).map((row) => row.user_id as string)),
+      ].filter((memberId) => memberId !== actorId);
+
+      await Promise.all(
+        memberIds.map((memberId) =>
+          createNotification({
+            userId: memberId,
+            type: 'adventure_shared',
+            actorId,
+            entityId: adventureId,
+          })
+        )
+      );
+    }
   }
   return {};
 }

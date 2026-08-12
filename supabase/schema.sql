@@ -111,6 +111,7 @@ CREATE TABLE public.groups (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   description TEXT,
+  avatar_url TEXT,
   created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -143,6 +144,19 @@ CREATE TABLE public.adventure_shares (
 );
 
 -- =============================================
+-- NOTIFICATIONS (lightweight social center)
+-- =============================================
+CREATE TABLE public.notifications (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('friend_request', 'friend_accepted', 'adventure_shared', 'group_invite')),
+  actor_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  entity_id UUID,
+  read_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =============================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- =============================================
 
@@ -156,6 +170,7 @@ ALTER TABLE public.friends ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.group_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.adventure_shares ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
 -- =============================================
 -- RLS helper functions
@@ -249,6 +264,29 @@ CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles
 CREATE POLICY "Users can update own profile" ON public.profiles
   FOR UPDATE USING (id = auth.uid());
 
+-- Trusted circles can view each other's profiles even when private, so friends
+-- and groups render names/avatars/bios for their members.
+CREATE POLICY "Friends can view each other's profiles" ON public.profiles
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.friends f
+      WHERE f.status = 'accepted'
+        AND (
+          (f.requester_id = profiles.id AND f.addressee_id = auth.uid())
+          OR (f.addressee_id = profiles.id AND f.requester_id = auth.uid())
+        )
+    )
+  );
+
+CREATE POLICY "Group members can view co-member profiles" ON public.profiles
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.group_members gm
+      WHERE gm.user_id = profiles.id
+        AND public.user_is_group_member(gm.group_id)
+    )
+  );
+
 -- Places: Anyone (including logged-out visitors) can read places, authenticated users can insert
 CREATE POLICY "Places are viewable by everyone" ON public.places
   FOR SELECT USING (true);
@@ -281,8 +319,31 @@ CREATE POLICY "Users can delete own saved places" ON public.saved_places
   FOR DELETE USING (user_id = auth.uid());
 
 -- Adventures: Owner can do everything, public/shared ones are readable
+-- NOTE: these are inlined (not calling adventure_visible_to_user/editable_by_user)
+-- because those helpers query public.adventures and therefore fail RLS on
+-- INSERT/UPDATE ... RETURNING (the subquery cannot see the just-written row).
+-- See migration 0007 for details.
 CREATE POLICY "Users can view accessible adventures" ON public.adventures
-  FOR SELECT USING (public.adventure_visible_to_user(id));
+  FOR SELECT USING (
+    owner_id = auth.uid()
+    OR visibility = 'public'
+    OR (
+      visibility = 'shared'
+      AND (
+        EXISTS (
+          SELECT 1 FROM public.adventure_shares s
+          WHERE s.adventure_id = adventures.id
+            AND s.shared_with_user_id = auth.uid()
+        )
+        OR EXISTS (
+          SELECT 1 FROM public.adventure_shares s
+          JOIN public.group_members gm ON gm.group_id = s.shared_with_group_id
+          WHERE s.adventure_id = adventures.id
+            AND gm.user_id = auth.uid()
+        )
+      )
+    )
+  );
 
 CREATE POLICY "Users can insert own adventures" ON public.adventures
   FOR INSERT WITH CHECK (owner_id = auth.uid());
@@ -290,7 +351,28 @@ CREATE POLICY "Users can insert own adventures" ON public.adventures
 -- Owners always edit; shared collaborators edit only when the adventure is
 -- shared, allow_collaboration is on, and their share grants can_edit.
 CREATE POLICY "Users can update adventures they can edit" ON public.adventures
-  FOR UPDATE USING (public.adventure_editable_by_user(id));
+  FOR UPDATE USING (
+    owner_id = auth.uid()
+    OR (
+      visibility = 'shared'
+      AND allow_collaboration
+      AND (
+        EXISTS (
+          SELECT 1 FROM public.adventure_shares s
+          WHERE s.adventure_id = adventures.id
+            AND s.shared_with_user_id = auth.uid()
+            AND s.can_edit
+        )
+        OR EXISTS (
+          SELECT 1 FROM public.adventure_shares s
+          JOIN public.group_members gm ON gm.group_id = s.shared_with_group_id
+          WHERE s.adventure_id = adventures.id
+            AND gm.user_id = auth.uid()
+            AND s.can_edit
+        )
+      )
+    )
+  );
 
 CREATE POLICY "Users can delete own adventures" ON public.adventures
   FOR DELETE USING (owner_id = auth.uid());
@@ -344,9 +426,57 @@ CREATE POLICY "Group members can view groups" ON public.groups
 CREATE POLICY "Authenticated users can create groups" ON public.groups
   FOR INSERT TO authenticated WITH CHECK (created_by = auth.uid());
 
+CREATE POLICY "Group admins can edit groups" ON public.groups
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM public.group_members gm
+      WHERE gm.group_id = id AND gm.user_id = auth.uid() AND gm.role = 'admin'
+    )
+  );
+
+CREATE POLICY "Group admins can delete groups" ON public.groups
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM public.group_members gm
+      WHERE gm.group_id = id AND gm.user_id = auth.uid() AND gm.role = 'admin'
+    )
+  );
+
 -- Group Members: Members can view co-members
 CREATE POLICY "Group members can view members" ON public.group_members
   FOR SELECT USING (public.user_is_group_member(group_id));
+
+-- The creator inserts their own admin row while creating the group; afterwards
+-- only existing admins can add members.
+CREATE POLICY "Creators can add self and admins can add members" ON public.group_members
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.groups g
+      WHERE g.id = group_id AND g.created_by = auth.uid()
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.group_members gm
+      WHERE gm.group_id = group_id AND gm.user_id = auth.uid() AND gm.role = 'admin'
+    )
+  );
+
+CREATE POLICY "Group admins can update members" ON public.group_members
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM public.group_members gm
+      WHERE gm.group_id = group_id AND gm.user_id = auth.uid() AND gm.role = 'admin'
+    )
+  );
+
+-- Members can always delete their own row (leave); admins can remove anyone.
+CREATE POLICY "Members can leave and admins can remove members" ON public.group_members
+  FOR DELETE USING (
+    user_id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM public.group_members gm
+      WHERE gm.group_id = group_id AND gm.user_id = auth.uid() AND gm.role = 'admin'
+    )
+  );
 
 -- Adventure Shares: Owner can manage, anyone with access can view
 CREATE POLICY "Users can view shares of adventures they can access" ON public.adventure_shares
@@ -376,6 +506,16 @@ CREATE POLICY "Adventure owners can remove shares" ON public.adventure_shares
     )
   );
 
+-- Notifications: actors create them, recipients view/update them
+CREATE POLICY "Users can view own notifications" ON public.notifications
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "Users can update own notifications" ON public.notifications
+  FOR UPDATE USING (user_id = auth.uid());
+
+CREATE POLICY "Actors can create notifications" ON public.notifications
+  FOR INSERT WITH CHECK (actor_id = auth.uid());
+
 -- =============================================
 -- INDEXES for performance
 -- =============================================
@@ -387,6 +527,7 @@ CREATE INDEX idx_friends_users ON public.friends(requester_id, addressee_id);
 CREATE INDEX idx_group_members_group ON public.group_members(group_id);
 CREATE INDEX idx_group_members_user ON public.group_members(user_id);
 CREATE INDEX idx_places_foursquare ON public.places(foursquare_fsq_id);
+CREATE INDEX idx_notifications_user ON public.notifications(user_id);
 
 -- =============================================
 -- TABLE GRANTS (roles need privileges on top of RLS)
@@ -413,3 +554,5 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.adventure_shares TO authenticated
 GRANT SELECT ON public.adventures TO anon;
 GRANT SELECT ON public.adventure_places TO anon;
 GRANT SELECT ON public.saved_places TO anon;
+
+GRANT SELECT, INSERT, UPDATE ON public.notifications TO authenticated;

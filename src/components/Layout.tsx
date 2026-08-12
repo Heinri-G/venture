@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { Bookmark, Compass, LogOut, Map, MapPin, Menu, Moon, Route, Sun, User, X } from 'lucide-react';
+import { Bell, Bookmark, Compass, LogOut, Map, MapPin, Menu, Moon, Route, Sun, User, Users, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
@@ -14,6 +14,8 @@ import {
 } from './ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from './ui/sheet';
 import { Skeleton } from './ui/skeleton';
+import NotificationsSheet from './NotificationsSheet';
+import { useNotifications } from './NotificationsProvider';
 import { useAuthUser } from '../lib/useAuthUser';
 import { supabase } from '../lib/supabase/client';
 import { cn } from '../lib/utils';
@@ -23,6 +25,7 @@ const NAV_LINKS = [
   { to: '/map', label: 'Map', icon: MapPin },
   { to: '/saved-places', label: 'Saved', icon: Bookmark },
   { to: '/adventures', label: 'Adventures', icon: Route },
+  { to: '/friends', label: 'Friends', icon: Users },
 ];
 
 function getInitials(user: { email?: string; user_metadata?: Record<string, unknown> }): string {
@@ -53,8 +56,10 @@ function ThemeToggle() {
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthUser();
+  const { unreadCount } = useNotifications();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -102,6 +107,27 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-1.5">
+            {user && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="relative rounded-full"
+                aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+                onClick={() => setNotifOpen(true)}
+              >
+                <Bell className="size-5" />
+                {unreadCount > 0 && (
+                  <span
+                    aria-hidden
+                    className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground"
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </Button>
+            )}
+
             <ThemeToggle />
 
             {loading ? (
@@ -224,6 +250,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <p>© {new Date().getFullYear()} Venture</p>
         </div>
       </footer>
+
+      <NotificationsSheet open={notifOpen} onOpenChange={setNotifOpen} />
     </div>
   );
 }
