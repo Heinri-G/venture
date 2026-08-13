@@ -1,12 +1,12 @@
-import React, { memo, useEffect, useRef } from 'react';
-import { MapContainer, Marker, TileLayer, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import MarkerClusterGroup from 'react-leaflet-cluster';
-import L from 'leaflet';
+import { memo, useEffect, useMemo, useRef } from 'react';
+import { LngLatBounds } from 'maplibre-gl';
+import type { GeoJSONSource, MapMouseEvent } from 'maplibre-gl';
 import { List, Navigation } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useMapLibre } from '@/hooks/useMapLibre';
 import type { SavedPlaceWithDetails } from '@/lib/savedPlaces';
+import type { FeatureCollection } from 'geojson';
 
 interface SavedPlacesMapProps {
   places: SavedPlaceWithDetails[];
@@ -17,73 +17,19 @@ interface SavedPlacesMapProps {
   loading?: boolean;
 }
 
-const DEFAULT_CENTER: [number, number] = [52.52, 13.405]; // Berlin
+const DEFAULT_CENTER: [number, number] = [13.405, 52.52]; // Berlin
 const DEFAULT_ZOOM = 12;
+const CLUSTER_RADIUS = 50;
+const PRIMARY = '#5450e6';
+const PLACES_SOURCE = 'saved-places';
+const CLUSTER_LAYER = 'saved-places-clusters';
+const CLUSTER_COUNT_LAYER = 'saved-places-cluster-count';
+const POINT_LAYER = 'saved-places-points';
 
-const savedIcon = L.divIcon({
-  className: '',
-  html: `
-    <div class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-lg">
-      <span class="size-2 rounded-full bg-current"></span>
-    </div>`,
-  iconSize: [32, 32],
-  iconAnchor: [16, 16],
-  popupAnchor: [0, -20],
-});
-
-const selectedSavedIcon = L.divIcon({
-  className: '',
-  html: `
-    <div class="flex h-10 w-10 items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-xl ring-4 ring-primary/30">
-      <span class="size-2.5 rounded-full bg-current"></span>
-    </div>`,
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
-  popupAnchor: [0, -24],
-});
-
-function createClusterIcon(cluster: { getChildCount: () => number }) {
-  return L.divIcon({
-    className: '',
-    html: `
-      <div class="flex size-9 items-center justify-center rounded-full border-2 border-background bg-primary text-xs font-bold text-primary-foreground shadow-lg">
-        ${cluster.getChildCount()}
-      </div>`,
-    iconSize: [36, 36],
-  });
-}
-
-// Drives the map: fits the saved-place bounds on mount and flies to a
-// selected target whenever it changes.
-function MapBehavior({
-  places,
-  flyToTarget,
-}: {
-  places: SavedPlaceWithDetails[];
-  flyToTarget: SavedPlacesMapProps['flyToTarget'];
-}) {
-  const map = useMap();
-  const lastFlyIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (flyToTarget) {
-      if (lastFlyIdRef.current === flyToTarget.id) return;
-      lastFlyIdRef.current = flyToTarget.id;
-      map.flyTo([flyToTarget.latitude, flyToTarget.longitude], 14, { duration: 1.2 });
-      return;
-    }
-
-    if (places.length > 0) {
-      const bounds = L.latLngBounds(
-        places.map((p) => [p.place.latitude, p.place.longitude] as [number, number])
-      );
-      map.fitBounds(bounds, { padding: [48, 48] });
-    } else {
-      map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
-    }
-  }, [map, places, flyToTarget]);
-
-  return null;
+function boundsFromPlaces(places: SavedPlaceWithDetails[]) {
+  const bounds = new LngLatBounds();
+  places.forEach((p) => bounds.extend([p.place.longitude, p.place.latitude]));
+  return bounds;
 }
 
 function SavedPlacesMap({
@@ -94,14 +40,157 @@ function SavedPlacesMap({
   onBackToList,
   loading = false,
 }: SavedPlacesMapProps) {
-  const mapRef = useRef<L.Map | null>(null);
+  const { containerRef, map } = useMapLibre({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
+  const lastFlyIdRef = useRef<string | null>(null);
+  const placesRef = useRef(places);
+  useEffect(() => {
+    placesRef.current = places;
+  });
+  const onSelectPlaceRef = useRef(onSelectPlace);
+  useEffect(() => {
+    onSelectPlaceRef.current = onSelectPlace;
+  });
+
+  const featureCollection = useMemo<FeatureCollection>(
+    () => ({
+      type: 'FeatureCollection',
+      features: places.map((sp) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [sp.place.longitude, sp.place.latitude] },
+        properties: { id: sp.id, selected: sp.id === selectedPlaceId },
+      })),
+    }),
+    [places, selectedPlaceId]
+  );
+
+  // Drives the map: fits the saved-place bounds and flies to a selected target.
+  useEffect(() => {
+    if (!map) return;
+
+    if (flyToTarget) {
+      if (lastFlyIdRef.current === flyToTarget.id) return;
+      lastFlyIdRef.current = flyToTarget.id;
+      map.flyTo({
+        center: [flyToTarget.longitude, flyToTarget.latitude],
+        zoom: 14,
+        duration: 1200,
+      });
+      return;
+    }
+
+    if (places.length > 0) {
+      map.fitBounds(boundsFromPlaces(places), { padding: 48 });
+    } else {
+      map.jumpTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
+    }
+  }, [map, places, flyToTarget]);
+
+  // Cluster source + layers. Re-applies after a style reload (theme flip).
+  useEffect(() => {
+    if (!map) return;
+
+    const apply = () => {
+      if (!map.getSource(PLACES_SOURCE)) {
+        map.addSource(PLACES_SOURCE, {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+          cluster: true,
+          clusterMaxZoom: 14,
+          clusterRadius: CLUSTER_RADIUS,
+        });
+        map.addLayer({
+          id: CLUSTER_LAYER,
+          type: 'circle',
+          source: PLACES_SOURCE,
+          filter: ['has', 'point_count'],
+          paint: {
+            'circle-color': PRIMARY,
+            'circle-radius': ['step', ['get', 'point_count'], 20, 10, 26, 100, 34],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#ffffff',
+          },
+        });
+        map.addLayer({
+          id: CLUSTER_COUNT_LAYER,
+          type: 'symbol',
+          source: PLACES_SOURCE,
+          filter: ['has', 'point_count'],
+          layout: {
+            'text-field': '{point_count_abbreviated}',
+            'text-size': 12,
+            'text-font': ['Noto Sans Regular'],
+          },
+          paint: { 'text-color': '#ffffff' },
+        });
+        map.addLayer({
+          id: POINT_LAYER,
+          type: 'circle',
+          source: PLACES_SOURCE,
+          filter: ['!', ['has', 'point_count']],
+          paint: {
+            'circle-color': PRIMARY,
+            'circle-radius': ['case', ['get', 'selected'], 12, 7],
+            'circle-stroke-width': ['case', ['get', 'selected'], 6, 2],
+            'circle-stroke-color': '#ffffff',
+          },
+        });
+      }
+      (map.getSource(PLACES_SOURCE) as GeoJSONSource).setData(featureCollection);
+    };
+
+    map.on('style.load', apply);
+    if (map.isStyleLoaded()) apply();
+    return () => {
+      map.off('style.load', apply);
+    };
+  }, [map, featureCollection]);
+
+  // Interactions: cluster zoom, saved-place select.
+  useEffect(() => {
+    if (!map) return;
+
+    const handleClick = (e: MapMouseEvent) => {
+      const clusterFeatures = map.queryRenderedFeatures(e.point, { layers: [CLUSTER_LAYER] });
+      if (clusterFeatures.length > 0) {
+        e.preventDefault();
+        const clusterId = clusterFeatures[0].properties?.cluster_id as number;
+        const source = map.getSource(PLACES_SOURCE) as GeoJSONSource;
+        source
+          .getClusterExpansionZoom(clusterId)
+          .then((zoom) => {
+            map.easeTo({
+              center: (clusterFeatures[0].geometry as { type: 'Point'; coordinates: [number, number] })
+                .coordinates,
+              zoom,
+            });
+          })
+          .catch(() => undefined);
+        return;
+      }
+
+      const pointFeatures = map.queryRenderedFeatures(e.point, { layers: [POINT_LAYER] });
+      if (pointFeatures.length > 0) {
+        e.preventDefault();
+        const id = String(pointFeatures[0].properties?.id ?? '');
+        const place = placesRef.current.find((p) => p.id === id);
+        if (place) onSelectPlaceRef.current(place);
+      }
+    };
+
+    map.on('click', handleClick);
+    return () => {
+      map.off('click', handleClick);
+    };
+  }, [map]);
 
   const handleLocateMe = () => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        mapRef.current?.flyTo([position.coords.latitude, position.coords.longitude], 14, {
-          duration: 1.5,
+        map?.flyTo({
+          center: [position.coords.longitude, position.coords.latitude],
+          zoom: 14,
+          duration: 1500,
         });
       },
       (error) => console.error('Geolocation error:', error),
@@ -111,36 +200,7 @@ function SavedPlacesMap({
 
   return (
     <div className="relative isolate h-full w-full overflow-hidden bg-muted">
-      <MapContainer
-        center={DEFAULT_CENTER}
-        zoom={DEFAULT_ZOOM}
-        scrollWheelZoom
-        className="h-full w-full"
-        style={{ height: '100%', width: '100%' }}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-
-        <MapBehavior places={places} flyToTarget={flyToTarget} />
-
-        <MarkerClusterGroup
-          chunkedLoading
-          spiderfyOnMaxZoom
-          disableClusteringAtZoom={14}
-          iconCreateFunction={createClusterIcon}
-        >
-          {places.map((sp) => (
-            <Marker
-              key={sp.id}
-              position={[sp.place.latitude, sp.place.longitude]}
-              icon={selectedPlaceId === sp.id ? selectedSavedIcon : savedIcon}
-              eventHandlers={{ click: () => onSelectPlace(sp) }}
-            />
-          ))}
-        </MarkerClusterGroup>
-      </MapContainer>
+      <div ref={containerRef} className="h-full w-full" />
 
       <Button
         onClick={onBackToList}

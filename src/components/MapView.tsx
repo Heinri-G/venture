@@ -1,8 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import MarkerClusterGroup from 'react-leaflet-cluster';
-import L from 'leaflet';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Popup } from 'maplibre-gl';
+import type { GeoJSONSource, MapMouseEvent } from 'maplibre-gl';
 import { useNavigate } from 'react-router-dom';
 import { Navigation, Home } from 'lucide-react';
 import { supabase } from '../lib/supabase/client';
@@ -10,17 +8,9 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import PlacesSearch from './PlacesSearch';
 import PlaceDetails from './PlaceDetails';
+import { useMapLibre } from '../hooks/useMapLibre';
 import type { PlaceResult } from '../lib/places';
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
-// Fix default icon paths for Vite bundling
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x as unknown as string,
-  iconUrl: markerIcon as unknown as string,
-  shadowUrl: markerShadow as unknown as string,
-});
+import type { FeatureCollection } from 'geojson';
 
 export interface MapMarker {
   id: string;
@@ -44,8 +34,14 @@ interface MapViewProps {
   showSearch?: boolean;
 }
 
-const DEFAULT_CENTER: [number, number] = [52.52, 13.405]; // Berlin
+const DEFAULT_CENTER: [number, number] = [13.405, 52.52]; // Berlin
 const DEFAULT_ZOOM = 12;
+const CLUSTER_RADIUS = 50;
+const PRIMARY = '#5450e6';
+const PLACES_SOURCE = 'mapview-places';
+const CLUSTER_LAYER = 'mapview-clusters';
+const CLUSTER_COUNT_LAYER = 'mapview-cluster-count';
+const POINT_LAYER = 'mapview-points';
 let searchMarkerCounter = 0;
 
 const DEMO_MARKERS: MapMarker[] = [
@@ -54,44 +50,27 @@ const DEMO_MARKERS: MapMarker[] = [
   { id: 'demo-3', name: 'Demo Museum', latitude: 52.5194, longitude: 13.401, category: 'Museum' },
 ];
 
-// Bridges the react-leaflet map instance out to a ref and wires click/selection handlers.
-function MapController({
-  mapRef,
-  selectedLocation,
-  onMapClick,
-  onMoveEnd,
-}: {
-  mapRef: React.MutableRefObject<L.Map | null>;
-  selectedLocation: MapViewProps['selectedLocation'];
-  onMapClick?: (lat: number, lng: number) => void;
-  onMoveEnd?: (center: { latitude: number; longitude: number }) => void;
-}) {
-  const map = useMap();
-
-  useEffect(() => {
-    mapRef.current = map;
-    const handleClick = (e: L.LeafletMouseEvent) => onMapClick?.(e.latlng.lat, e.latlng.lng);
-    const handleMoveEnd = () => {
-      const center = map.getCenter();
-      onMoveEnd?.({ latitude: center.lat, longitude: center.lng });
-    };
-    map.on('click', handleClick);
-    map.on('moveend', handleMoveEnd);
-    handleMoveEnd();
-    return () => {
-      map.off('click', handleClick);
-      map.off('moveend', handleMoveEnd);
-      mapRef.current = null;
-    };
-  }, [map, mapRef, onMapClick, onMoveEnd]);
-
-  // Fly to a selected location whenever it changes.
-  useEffect(() => {
-    if (!selectedLocation) return;
-    map.flyTo([selectedLocation.latitude, selectedLocation.longitude], 14, { duration: 1.5 });
-  }, [map, selectedLocation]);
-
-  return null;
+function buildPopupContent(marker: MapMarker): HTMLElement {
+  const root = document.createElement('div');
+  root.className = 'text-sm';
+  const name = document.createElement('div');
+  name.className = 'font-semibold';
+  name.textContent = marker.name;
+  root.appendChild(name);
+  if (marker.category) {
+    const category = document.createElement('div');
+    category.className = 'text-muted-foreground';
+    category.textContent = marker.category;
+    root.appendChild(category);
+  }
+  if (marker.photoUrl) {
+    const img = document.createElement('img');
+    img.src = marker.photoUrl;
+    img.alt = marker.name;
+    img.className = 'mt-2 h-24 w-full rounded-lg object-cover';
+    root.appendChild(img);
+  }
+  return root;
 }
 
 export default function MapView({
@@ -103,7 +82,7 @@ export default function MapView({
   showSearch = false,
 }: MapViewProps) {
   const navigate = useNavigate();
-  const mapRef = useRef<L.Map | null>(null);
+  const { containerRef, map } = useMapLibre({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
   const [loadedMarkers, setLoadedMarkers] = useState<MapMarker[]>([]);
   const [searchMarkers, setSearchMarkers] = useState<MapMarker[]>([]);
   const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -111,6 +90,16 @@ export default function MapView({
   const [isLoading, setIsLoading] = useState(false);
   const hasExternalMarkers = markers !== undefined;
   const searchResultsRef = useRef<Map<string, PlaceResult>>(new Map());
+  const popupRef = useRef<Popup | null>(null);
+
+  const onSelectMarkerRef = useRef(onSelectMarker);
+  useEffect(() => {
+    onSelectMarkerRef.current = onSelectMarker;
+  });
+  const onMapClickRef = useRef(onMapClick);
+  useEffect(() => {
+    onMapClickRef.current = onMapClick;
+  });
 
   // When no markers are provided, load public places from Supabase (demo fallback).
   useEffect(() => {
@@ -171,11 +160,198 @@ export default function MapView({
     };
   }, [hasExternalMarkers]);
 
+  const handleMarkerClick = useCallback((marker: MapMarker) => {
+    if (onSelectMarkerRef.current) {
+      onSelectMarkerRef.current(marker.id);
+      return;
+    }
+    const stored = marker.fsqId ? searchResultsRef.current.get(marker.fsqId) : undefined;
+    setSelectedPlace({
+      fsq_id: stored?.fsq_id || marker.fsqId,
+      name: marker.name,
+      address: stored?.address || marker.address,
+      latitude: marker.latitude,
+      longitude: marker.longitude,
+      category: stored?.category || marker.category,
+      photoUrl: stored?.photoUrl || marker.photoUrl,
+      phone: stored?.phone,
+      website: stored?.website,
+      hours: stored?.hours,
+      description: stored?.description,
+    });
+  }, []);
+
+  const shownMarkers = useMemo(
+    () => (markers ? markers : [...loadedMarkers, ...searchMarkers]),
+    [markers, loadedMarkers, searchMarkers]
+  );
+
+  const featureCollection = useMemo<FeatureCollection>(
+    () => ({
+      type: 'FeatureCollection',
+      features: shownMarkers.map((m) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [m.longitude, m.latitude] },
+        properties: {
+          id: m.id,
+          name: m.name,
+          category: m.category ?? null,
+          photoUrl: m.photoUrl ?? null,
+          address: m.address ?? null,
+          fsqId: m.fsqId ?? null,
+        },
+      })),
+    }),
+    [shownMarkers]
+  );
+
+  // Cluster source + layers. Re-applies after a style reload (theme flip).
+  useEffect(() => {
+    if (!map) return;
+
+    const apply = () => {
+      if (!map.getSource(PLACES_SOURCE)) {
+        map.addSource(PLACES_SOURCE, {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+          cluster: true,
+          clusterMaxZoom: 14,
+          clusterRadius: CLUSTER_RADIUS,
+        });
+        map.addLayer({
+          id: CLUSTER_LAYER,
+          type: 'circle',
+          source: PLACES_SOURCE,
+          filter: ['has', 'point_count'],
+          paint: {
+            'circle-color': PRIMARY,
+            'circle-radius': ['step', ['get', 'point_count'], 20, 10, 26, 100, 34],
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#ffffff',
+          },
+        });
+        map.addLayer({
+          id: CLUSTER_COUNT_LAYER,
+          type: 'symbol',
+          source: PLACES_SOURCE,
+          filter: ['has', 'point_count'],
+          layout: {
+            'text-field': '{point_count_abbreviated}',
+            'text-size': 12,
+            'text-font': ['Noto Sans Regular'],
+          },
+          paint: { 'text-color': '#ffffff' },
+        });
+        map.addLayer({
+          id: POINT_LAYER,
+          type: 'circle',
+          source: PLACES_SOURCE,
+          filter: ['!', ['has', 'point_count']],
+          paint: {
+            'circle-color': PRIMARY,
+            'circle-radius': 7,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#ffffff',
+          },
+        });
+      }
+      (map.getSource(PLACES_SOURCE) as GeoJSONSource).setData(featureCollection);
+    };
+
+    map.on('style.load', apply);
+    if (map.isStyleLoaded()) apply();
+    return () => {
+      map.off('style.load', apply);
+    };
+  }, [map, featureCollection]);
+
+  // Interactions: cluster zoom, marker popup + sheet, empty-map click, moveend.
+  useEffect(() => {
+    if (!map) return;
+
+    const handleClick = (e: MapMouseEvent) => {
+      popupRef.current?.remove();
+      popupRef.current = null;
+
+      const clusterFeatures = map.queryRenderedFeatures(e.point, { layers: [CLUSTER_LAYER] });
+      if (clusterFeatures.length > 0) {
+        e.preventDefault();
+        const clusterId = clusterFeatures[0].properties?.cluster_id as number;
+        const source = map.getSource(PLACES_SOURCE) as GeoJSONSource;
+        source
+          .getClusterExpansionZoom(clusterId)
+          .then((zoom) => {
+            map.easeTo({
+              center: (clusterFeatures[0].geometry as { type: 'Point'; coordinates: [number, number] })
+                .coordinates,
+              zoom,
+            });
+          })
+          .catch(() => undefined);
+        return;
+      }
+
+      const pointFeatures = map.queryRenderedFeatures(e.point, { layers: [POINT_LAYER] });
+      if (pointFeatures.length > 0) {
+        e.preventDefault();
+        const feature = pointFeatures[0];
+        const props = feature.properties as Record<string, unknown>;
+        const marker: MapMarker = {
+          id: String(props.id ?? ''),
+          name: String(props.name ?? ''),
+          latitude: (feature.geometry as { type: 'Point'; coordinates: [number, number] }).coordinates[1],
+          longitude: (feature.geometry as { type: 'Point'; coordinates: [number, number] }).coordinates[0],
+          category: props.category ? String(props.category) : undefined,
+          photoUrl: props.photoUrl ? String(props.photoUrl) : undefined,
+          address: props.address ? String(props.address) : undefined,
+          fsqId: props.fsqId ? String(props.fsqId) : undefined,
+        };
+        if (!marker.id) return;
+        const popup = new Popup({ offset: 25 })
+          .setLngLat([marker.longitude, marker.latitude])
+          .setDOMContent(buildPopupContent(marker));
+        popup.addTo(map);
+        popupRef.current = popup;
+        handleMarkerClick(marker);
+        return;
+      }
+
+      onMapClickRef.current?.(e.lngLat.lat, e.lngLat.lng);
+    };
+
+    const handleMoveEnd = () => {
+      const c = map.getCenter();
+      setMapCenter({ latitude: c.lat, longitude: c.lng });
+    };
+
+    map.on('click', handleClick);
+    map.on('moveend', handleMoveEnd);
+    handleMoveEnd();
+    return () => {
+      map.off('click', handleClick);
+      map.off('moveend', handleMoveEnd);
+    };
+  }, [map, handleMarkerClick]);
+
+  // Fly to a selected location whenever it changes.
+  useEffect(() => {
+    if (!map || !selectedLocation) return;
+    map.flyTo({
+      center: [selectedLocation.longitude, selectedLocation.latitude],
+      zoom: 14,
+      duration: 1500,
+    });
+  }, [map, selectedLocation]);
+
   const handleLocateMe = () => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        mapRef.current?.flyTo([position.coords.latitude, position.coords.longitude], 14, { duration: 1.5 });
+        map?.flyTo({
+          center: [position.coords.longitude, position.coords.latitude],
+          zoom: 14,
+          duration: 1500,
+        });
       },
       (error) => console.error('Geolocation error:', error),
       { enableHighAccuracy: true }
@@ -198,41 +374,13 @@ export default function MapView({
     if (place.fsq_id) {
       searchResultsRef.current.set(place.fsq_id, place);
     }
-    mapRef.current?.flyTo([place.latitude, place.longitude], 14, { duration: 1.5 });
+    map?.flyTo({
+      center: [place.longitude, place.latitude],
+      zoom: 14,
+      duration: 1500,
+    });
     setSelectedPlace(place);
   };
-
-  const handleMarkerClick = (marker: MapMarker) => {
-    if (onSelectMarker) {
-      onSelectMarker(marker.id);
-      return;
-    }
-    const stored = marker.fsqId ? searchResultsRef.current.get(marker.fsqId) : undefined;
-    setSelectedPlace({
-      fsq_id: stored?.fsq_id || marker.fsqId,
-      name: marker.name,
-      address: stored?.address || marker.address,
-      latitude: marker.latitude,
-      longitude: marker.longitude,
-      category: stored?.category || marker.category,
-      photoUrl: stored?.photoUrl || marker.photoUrl,
-      phone: stored?.phone,
-      website: stored?.website,
-      hours: stored?.hours,
-      description: stored?.description,
-    });
-  };
-
-  const shownMarkers = useMemo(
-    () => (markers ? markers : [...loadedMarkers, ...searchMarkers]),
-    [markers, loadedMarkers, searchMarkers]
-  );
-  const center: [number, number] = useMemo(() => {
-    const baseMarkers = markers ?? loadedMarkers;
-    return baseMarkers.length
-      ? [baseMarkers[0].latitude, baseMarkers[0].longitude]
-      : DEFAULT_CENTER;
-  }, [markers, loadedMarkers]);
 
   return (
     <div
@@ -240,51 +388,7 @@ export default function MapView({
         fullscreen ? 'h-dvh' : 'h-full'
       }`}
     >
-      <MapContainer
-        center={center}
-        zoom={DEFAULT_ZOOM}
-        scrollWheelZoom
-        className="h-full w-full"
-        style={{ height: '100%', width: '100%' }}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-
-        <MapController
-          mapRef={mapRef}
-          selectedLocation={selectedLocation}
-          onMapClick={onMapClick}
-          onMoveEnd={setMapCenter}
-        />
-
-        <MarkerClusterGroup chunkedLoading spiderfyOnMaxZoom disableClusteringAtZoom={14}>
-          {shownMarkers.map((m) => (
-            <Marker
-              key={m.id}
-              position={[m.latitude, m.longitude]}
-              eventHandlers={{ click: () => handleMarkerClick(m) }}
-            >
-              <Popup>
-                <div className="text-sm">
-                  <div className="font-semibold">{m.name}</div>
-                  {m.category && <div className="text-muted-foreground">{m.category}</div>}
-                  {m.photoUrl && (
-                    <>
-                      <img
-                        src={m.photoUrl}
-                        alt={m.name}
-                        className="mt-2 h-24 w-full rounded-lg object-cover"
-                      />
-                    </>
-                  )}
-                </div>
-              </Popup>
-            </Marker>
-          ))}
-        </MarkerClusterGroup>
-      </MapContainer>
+      <div ref={containerRef} className="h-full w-full" />
 
       {showSearch && (
         <PlacesSearch

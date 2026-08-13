@@ -1,11 +1,13 @@
-import React, { memo, useEffect, useRef } from 'react';
-import { MapContainer, Marker, Polyline, TileLayer, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { LngLatBounds, Marker } from 'maplibre-gl';
+import type { GeoJSONSource } from 'maplibre-gl';
 import { Navigation } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useMapLibre } from '@/hooks/useMapLibre';
+import { fetchRoute } from '@/lib/routing';
+import type { Feature, LineString } from 'geojson';
 
 export interface AdventureMapPlace {
   key: string;
@@ -24,54 +26,26 @@ interface AdventureMapProps {
   className?: string;
 }
 
-const DEFAULT_CENTER: [number, number] = [52.52, 13.405]; // Berlin
+const DEFAULT_CENTER: [number, number] = [13.405, 52.52]; // Berlin
 const DEFAULT_ZOOM = 12;
+const ROUTE_COLOR = '#4f46e5';
+const ROUTE_SOURCE = 'adventure-route';
+const ROUTE_LAYER = 'adventure-route-line';
 
-function numberedIcon(index: number, selected: boolean) {
-  return L.divIcon({
-    className: '',
-    html: `
-      <div class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-background bg-primary text-xs font-bold text-primary-foreground shadow-lg ${selected ? 'ring-4 ring-primary/30' : ''}">
-        ${index + 1}
-      </div>`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-    popupAnchor: [0, -18],
-  });
+function numberedMarkerElement(index: number, selected: boolean): HTMLElement {
+  const el = document.createElement('div');
+  el.className = cn(
+    'flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-2 border-background bg-primary text-xs font-bold text-primary-foreground shadow-lg',
+    selected && 'ring-4 ring-primary/30'
+  );
+  el.textContent = String(index + 1);
+  return el;
 }
 
-// Fits the adventure's bounds on load and flies to a selected target.
-function MapBehavior({
-  places,
-  flyToTarget,
-}: {
-  places: AdventureMapPlace[];
-  flyToTarget: AdventureMapProps['flyToTarget'];
-}) {
-  const map = useMap();
-  const fittedRef = useRef(false);
-  const lastFlyKeyRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (flyToTarget) {
-      if (lastFlyKeyRef.current === flyToTarget.key) return;
-      lastFlyKeyRef.current = flyToTarget.key;
-      map.flyTo([flyToTarget.latitude, flyToTarget.longitude], 14, { duration: 1.2 });
-      return;
-    }
-
-    if (!fittedRef.current && places.length > 0) {
-      fittedRef.current = true;
-      const bounds = L.latLngBounds(
-        places.map((p) => [p.latitude, p.longitude] as [number, number])
-      );
-      map.fitBounds(bounds, { padding: [48, 48] });
-    } else if (places.length === 0) {
-      map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
-    }
-  }, [map, places, flyToTarget]);
-
-  return null;
+function boundsFromPlaces(places: AdventureMapPlace[]) {
+  const bounds = new LngLatBounds();
+  places.forEach((p) => bounds.extend([p.longitude, p.latitude]));
+  return bounds;
 }
 
 function AdventureMap({
@@ -83,14 +57,138 @@ function AdventureMap({
   loading = false,
   className,
 }: AdventureMapProps) {
-  const mapRef = useRef<L.Map | null>(null);
+  const { containerRef, map } = useMapLibre({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
+  const [routeLine, setRouteLine] = useState<Feature<LineString> | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const fittedRef = useRef(false);
+  const lastFlyKeyRef = useRef<string | null>(null);
+
+  const onSelectPlaceRef = useRef(onSelectPlace);
+  useEffect(() => {
+    onSelectPlaceRef.current = onSelectPlace;
+  });
+
+  // Fits the adventure's bounds on load and flies to a selected target.
+  useEffect(() => {
+    if (!map) return;
+
+    if (flyToTarget) {
+      if (lastFlyKeyRef.current === flyToTarget.key) return;
+      lastFlyKeyRef.current = flyToTarget.key;
+      map.flyTo({
+        center: [flyToTarget.longitude, flyToTarget.latitude],
+        zoom: 14,
+        duration: 1200,
+      });
+      return;
+    }
+
+    if (!fittedRef.current && places.length > 0) {
+      fittedRef.current = true;
+      map.fitBounds(boundsFromPlaces(places), { padding: 48 });
+    } else if (places.length === 0) {
+      map.jumpTo({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
+    }
+  }, [map, places, flyToTarget]);
+
+  // Numbered HTML markers with a selection ring.
+  useEffect(() => {
+    if (!map) return;
+    const markers = places.map((place, index) => {
+      const el = numberedMarkerElement(index, selectedPlaceKey === place.key);
+      el.addEventListener('click', () => onSelectPlaceRef.current?.(place));
+      const marker = new Marker({ element: el, anchor: 'center' })
+        .setLngLat([place.longitude, place.latitude])
+        .addTo(map);
+      return marker;
+    });
+    return () => {
+      markers.forEach((m) => m.remove());
+    };
+  }, [map, places, selectedPlaceKey]);
+
+  const routePositions = useCallback(
+    () => places.map((p) => [p.longitude, p.latitude] as [number, number]),
+    [places]
+  );
+
+  // Route: OSRM line, falling back to a straight polyline on error.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function updateRoute() {
+      if (!showRoute || places.length < 2) {
+        setRouteLoading(false);
+        setRouteLine(null);
+        return;
+      }
+      const waypoints = routePositions();
+      setRouteLoading(true);
+      try {
+        const route = await fetchRoute(waypoints);
+        if (cancelled) return;
+        setRouteLine({
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'LineString', coordinates: route },
+        });
+      } catch {
+        if (cancelled) return;
+        setRouteLine({
+          type: 'Feature',
+          properties: {},
+          geometry: { type: 'LineString', coordinates: waypoints },
+        });
+      } finally {
+        if (!cancelled) setRouteLoading(false);
+      }
+    }
+
+    void updateRoute();
+    return () => {
+      cancelled = true;
+    };
+  }, [showRoute, places, routePositions]);
+
+  // Route line layer. Re-applies after a style reload (theme flip).
+  useEffect(() => {
+    if (!map) return;
+
+    const apply = () => {
+      if (!routeLine) {
+        if (map.getLayer(ROUTE_LAYER)) map.removeLayer(ROUTE_LAYER);
+        if (map.getSource(ROUTE_SOURCE)) map.removeSource(ROUTE_SOURCE);
+        return;
+      }
+      if (!map.getSource(ROUTE_SOURCE)) {
+        map.addSource(ROUTE_SOURCE, { type: 'geojson', data: routeLine });
+        map.addLayer({
+          id: ROUTE_LAYER,
+          type: 'line',
+          source: ROUTE_SOURCE,
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': ROUTE_COLOR, 'line-width': 3, 'line-opacity': 0.8 },
+        });
+      } else {
+        (map.getSource(ROUTE_SOURCE) as GeoJSONSource).setData(routeLine);
+      }
+    };
+
+    map.on('style.load', apply);
+    if (map.isStyleLoaded()) apply();
+    return () => {
+      map.off('style.load', apply);
+    };
+  }, [map, routeLine]);
 
   const handleLocateMe = () => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        mapRef.current?.flyTo([position.coords.latitude, position.coords.longitude], 14, {
-          duration: 1.5,
+        map?.flyTo({
+          center: [position.coords.longitude, position.coords.latitude],
+          zoom: 14,
+          duration: 1500,
         });
       },
       (error) => console.error('Geolocation error:', error),
@@ -98,43 +196,9 @@ function AdventureMap({
     );
   };
 
-  const positions = places.map((p) => [p.latitude, p.longitude] as [number, number]);
-
   return (
     <div className={cn('relative isolate h-full w-full overflow-hidden bg-muted', className)}>
-      <MapContainer
-        center={DEFAULT_CENTER}
-        zoom={DEFAULT_ZOOM}
-        scrollWheelZoom
-        className="h-full w-full"
-        style={{ height: '100%', width: '100%' }}
-        ref={(map) => {
-          mapRef.current = map;
-        }}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-
-        <MapBehavior places={places} flyToTarget={flyToTarget} />
-
-        {showRoute && positions.length > 1 && (
-          <Polyline
-            positions={positions}
-            pathOptions={{ color: '#4f46e5', weight: 3, opacity: 0.8 }}
-          />
-        )}
-
-        {places.map((place, index) => (
-          <Marker
-            key={place.key}
-            position={[place.latitude, place.longitude]}
-            icon={numberedIcon(index, selectedPlaceKey === place.key)}
-            eventHandlers={{ click: () => onSelectPlace?.(place) }}
-          />
-        ))}
-      </MapContainer>
+      <div ref={containerRef} className="h-full w-full" />
 
       <Button
         onClick={handleLocateMe}
@@ -153,6 +217,15 @@ function AdventureMap({
           className="absolute left-1/2 top-4 z-[1100] -translate-x-1/2 shadow"
         >
           Loading places...
+        </Badge>
+      )}
+
+      {routeLoading && showRoute && places.length > 1 && (
+        <Badge
+          variant="secondary"
+          className="absolute left-1/2 top-4 z-[1100] -translate-x-1/2 shadow"
+        >
+          Planning route...
         </Badge>
       )}
     </div>
