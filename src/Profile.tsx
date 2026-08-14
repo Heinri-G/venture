@@ -12,6 +12,7 @@ import { Skeleton } from './components/ui/skeleton';
 import { Switch } from './components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Textarea } from './components/ui/textarea';
+import EdelweissMark from './components/brand/EdelweissMark';
 
 export default function Profile() {
   const [loading, setLoading] = useState(true);
@@ -148,7 +149,9 @@ export default function Profile() {
 
       {/* Profile header card */}
       <Card className="mb-6 overflow-hidden py-0">
-        <div className="h-28 bg-gradient-to-br from-primary via-violet-600 to-sky-500 sm:h-32" />
+        <div className="relative h-28 overflow-hidden bg-meadow-hero sm:h-32">
+          <EdelweissMark aria-hidden className="absolute -right-4 -top-6 size-32 text-primary/15" />
+        </div>
         <CardContent className="flex flex-col items-start gap-4 px-6 pb-6 sm:flex-row sm:items-end">
           <Avatar className="-mt-10 size-24 ring-4 ring-background sm:-mt-12 sm:size-28">
             {avatar ? <AvatarImage src={avatar} alt="Profile avatar" /> : null}

@@ -5,6 +5,7 @@ import { List, Navigation } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useMapLibre } from '@/hooks/useMapLibre';
+import { PRIMARY, MARKER_STROKE } from '@/lib/map/colors';
 import type { SavedPlaceWithDetails } from '@/lib/savedPlaces';
 import type { FeatureCollection } from 'geojson';
 
@@ -20,7 +21,6 @@ interface SavedPlacesMapProps {
 const DEFAULT_CENTER: [number, number] = [13.405, 52.52]; // Berlin
 const DEFAULT_ZOOM = 12;
 const CLUSTER_RADIUS = 50;
-const PRIMARY = '#5450e6';
 const PLACES_SOURCE = 'saved-places';
 const CLUSTER_LAYER = 'saved-places-clusters';
 const CLUSTER_COUNT_LAYER = 'saved-places-cluster-count';
@@ -107,7 +107,7 @@ function SavedPlacesMap({
             'circle-color': PRIMARY,
             'circle-radius': ['step', ['get', 'point_count'], 20, 10, 26, 100, 34],
             'circle-stroke-width': 2,
-            'circle-stroke-color': '#ffffff',
+            'circle-stroke-color': MARKER_STROKE,
           },
         });
         map.addLayer({
@@ -131,7 +131,7 @@ function SavedPlacesMap({
             'circle-color': PRIMARY,
             'circle-radius': ['case', ['get', 'selected'], 12, 7],
             'circle-stroke-width': ['case', ['get', 'selected'], 6, 2],
-            'circle-stroke-color': '#ffffff',
+            'circle-stroke-color': MARKER_STROKE,
           },
         });
       }

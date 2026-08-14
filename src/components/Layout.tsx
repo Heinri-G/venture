@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { Bell, Bookmark, Compass, LogOut, Map, MapPin, Menu, Moon, Route, Sun, User, Users, X } from 'lucide-react';
+import { Bell, Bookmark, LogOut, Map, MapPin, Menu, Moon, Route, Sun, User, Users, X } from 'lucide-react';
+import EdelweissMark from './brand/EdelweissMark';
 import { useTheme } from 'next-themes';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
@@ -70,19 +71,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="relative flex min-h-dvh flex-col overflow-x-clip">
       {/* Decorative page background */}
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
-        <div className="absolute inset-0 bg-grid [mask-image:linear-gradient(to_bottom,black,transparent_60%)] opacity-60" />
-        <div className="absolute -top-32 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute -left-40 top-1/3 h-96 w-96 rounded-full bg-sky-400/10 blur-3xl" />
-        <div className="absolute -right-40 top-2/3 h-96 w-96 rounded-full bg-violet-400/10 blur-3xl" />
+        <div className="absolute inset-0 bg-meadow [mask-image:linear-gradient(to_bottom,black,transparent_60%)] opacity-40" />
       </div>
 
       <header className="sticky top-0 z-50 border-b border-border/60 bg-background/70 backdrop-blur-xl">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <Link to="/" className="group flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-violet-600 text-primary-foreground shadow-lg shadow-primary/25 transition-transform duration-300 group-hover:scale-105">
-              <Compass className="size-5" />
+            <span className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-primary/20 ring-1 ring-primary/20 transition-transform duration-300 group-hover:scale-105">
+              <EdelweissMark className="size-5" />
             </span>
-            <span className="font-heading text-lg font-bold tracking-tight">Venture</span>
+            <span className="font-heading text-lg font-bold lowercase tracking-wide">Venture</span>
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex">
@@ -242,8 +240,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <footer className="mt-20 border-t border-border/60">
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
           <p className="flex items-center gap-1.5">
-            <span className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <MapPin className="size-3.5" />
+            <span className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <EdelweissMark className="size-4" />
             </span>
             Venture — explore &amp; save amazing places
           </p>

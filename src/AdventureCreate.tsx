@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Compass } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import AdventureCreationForm from './components/AdventureCreationForm';
+import EdelweissMark from './components/brand/EdelweissMark';
 import { Button } from './components/ui/button';
 import { Card } from './components/ui/card';
 import { Skeleton } from './components/ui/skeleton';
@@ -74,8 +75,8 @@ export default function AdventureCreate() {
       </div>
 
       <div className="mb-6 flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-violet-600 text-primary-foreground shadow-lg shadow-primary/25">
-          <Compass className="size-5" />
+        <span className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-primary/25 ring-1 ring-primary/20">
+          <EdelweissMark className="size-5" />
         </span>
         <div>
           <h1 className="font-heading text-xl font-bold tracking-tight sm:text-2xl">

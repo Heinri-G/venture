@@ -421,7 +421,7 @@ export default function AdventureDetail() {
         {adventure.cover_photo_url ? (
           <img src={adventure.cover_photo_url} alt="" className="h-44 w-full object-cover sm:h-56" />
         ) : (
-          <div className="flex h-32 w-full items-center justify-center bg-gradient-to-br from-primary/15 via-violet-600/10 to-sky-500/10 text-primary sm:h-40">
+          <div className="flex h-32 w-full items-center justify-center bg-gradient-to-br from-secondary/20 via-primary/10 to-chart-3/15 text-primary sm:h-40">
             <MapIcon className="size-12" />
           </div>
         )}

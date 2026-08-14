@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useMapLibre } from '@/hooks/useMapLibre';
+import { ROUTE_COLOR } from '@/lib/map/colors';
 import { fetchRoute } from '@/lib/routing';
 import type { Feature, LineString } from 'geojson';
 
@@ -28,7 +29,6 @@ interface AdventureMapProps {
 
 const DEFAULT_CENTER: [number, number] = [13.405, 52.52]; // Berlin
 const DEFAULT_ZOOM = 12;
-const ROUTE_COLOR = '#4f46e5';
 const ROUTE_SOURCE = 'adventure-route';
 const ROUTE_LAYER = 'adventure-route-line';
 

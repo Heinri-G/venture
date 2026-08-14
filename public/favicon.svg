@@ -1,5 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#6366f1"/>
-  <path d="M16 6c-4.4 0-8 3.6-8 8 0 5.5 8 12 8 12s8-6.5 8-12c0-4.4-3.6-8-8-8z" fill="#fff"/>
-  <circle cx="16" cy="14" r="3" fill="#6366f1"/>
+  <rect width="32" height="32" rx="8" fill="#f7f3ea"/>
+  <g fill="#7d8fc4" transform="translate(16 16) scale(0.62)">
+    <path d="M0 -22 C6 -16 6.5 -5 0 2 C-6.5 -5 -6 -16 0 -22 Z"/>
+    <path d="M0 -22 C6 -16 6.5 -5 0 2 C-6.5 -5 -6 -16 0 -22 Z" transform="rotate(90)"/>
+    <path d="M0 -22 C6 -16 6.5 -5 0 2 C-6.5 -5 -6 -16 0 -22 Z" transform="rotate(180)"/>
+    <path d="M0 -22 C6 -16 6.5 -5 0 2 C-6.5 -5 -6 -16 0 -22 Z" transform="rotate(270)"/>
+    <path d="M0 -12 C4 -8.5 4.5 -3.5 0 2 C-4.5 -3.5 -4 -8.5 0 -12 Z" transform="rotate(45)"/>
+    <path d="M0 -12 C4 -8.5 4.5 -3.5 0 2 C-4.5 -3.5 -4 -8.5 0 -12 Z" transform="rotate(135)"/>
+    <path d="M0 -12 C4 -8.5 4.5 -3.5 0 2 C-4.5 -3.5 -4 -8.5 0 -12 Z" transform="rotate(225)"/>
+    <path d="M0 -12 C4 -8.5 4.5 -3.5 0 2 C-4.5 -3.5 -4 -8.5 0 -12 Z" transform="rotate(315)"/>
+    <circle r="3"/>
+  </g>
 </svg>

@@ -371,7 +371,7 @@ export default function Adventures() {
                         className="h-40 w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (
-                      <div className="flex h-40 w-full items-center justify-center bg-gradient-to-br from-primary/15 via-violet-600/10 to-sky-500/10 text-primary">
+                      <div className="flex h-40 w-full items-center justify-center bg-gradient-to-br from-secondary/20 via-primary/10 to-chart-3/15 text-primary">
                         <MapIcon className="size-10" />
                       </div>
                     )}

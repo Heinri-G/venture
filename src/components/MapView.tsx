@@ -9,6 +9,7 @@ import { Badge } from './ui/badge';
 import PlacesSearch from './PlacesSearch';
 import PlaceDetails from './PlaceDetails';
 import { useMapLibre } from '../hooks/useMapLibre';
+import { PRIMARY, MARKER_STROKE } from '../lib/map/colors';
 import type { PlaceResult } from '../lib/places';
 import type { FeatureCollection } from 'geojson';
 
@@ -37,7 +38,6 @@ interface MapViewProps {
 const DEFAULT_CENTER: [number, number] = [13.405, 52.52]; // Berlin
 const DEFAULT_ZOOM = 12;
 const CLUSTER_RADIUS = 50;
-const PRIMARY = '#5450e6';
 const PLACES_SOURCE = 'mapview-places';
 const CLUSTER_LAYER = 'mapview-clusters';
 const CLUSTER_COUNT_LAYER = 'mapview-cluster-count';
@@ -227,7 +227,7 @@ export default function MapView({
             'circle-color': PRIMARY,
             'circle-radius': ['step', ['get', 'point_count'], 20, 10, 26, 100, 34],
             'circle-stroke-width': 2,
-            'circle-stroke-color': '#ffffff',
+            'circle-stroke-color': MARKER_STROKE,
           },
         });
         map.addLayer({
@@ -251,7 +251,7 @@ export default function MapView({
             'circle-color': PRIMARY,
             'circle-radius': 7,
             'circle-stroke-width': 2,
-            'circle-stroke-color': '#ffffff',
+            'circle-stroke-color': MARKER_STROKE,
           },
         });
       }

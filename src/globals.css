@@ -5,72 +5,80 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(0.985 0.004 277);
-  --foreground: oklch(0.19 0.015 277);
+  --background: oklch(0.965 0.012 85);
+  --foreground: oklch(0.35 0.035 140);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.19 0.015 277);
+  --card-foreground: oklch(0.35 0.035 140);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.19 0.015 277);
-  --primary: oklch(0.53 0.22 277);
+  --popover-foreground: oklch(0.35 0.035 140);
+  --primary: oklch(0.55 0.1 150);
   --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.95 0.01 277);
-  --secondary-foreground: oklch(0.3 0.05 277);
-  --muted: oklch(0.955 0.008 277);
-  --muted-foreground: oklch(0.5 0.03 277);
-  --accent: oklch(0.93 0.02 277);
-  --accent-foreground: oklch(0.25 0.05 277);
-  --destructive: oklch(0.6 0.24 27);
-  --border: oklch(0.905 0.012 277);
-  --input: oklch(0.9 0.012 277);
-  --ring: oklch(0.53 0.22 277);
-  --chart-1: oklch(0.53 0.22 277);
-  --chart-2: oklch(0.7 0.14 200);
-  --chart-3: oklch(0.72 0.19 160);
-  --chart-4: oklch(0.8 0.16 80);
-  --chart-5: oklch(0.7 0.17 330);
-  --sidebar: oklch(0.985 0.004 277);
-  --sidebar-foreground: oklch(0.19 0.015 277);
-  --sidebar-primary: oklch(0.53 0.22 277);
+  --secondary: oklch(0.68 0.06 130);
+  --secondary-foreground: oklch(0.985 0.005 100);
+  --muted: oklch(0.945 0.01 100);
+  --muted-foreground: oklch(0.56 0.03 120);
+  --accent: oklch(0.92 0.035 150);
+  --accent-foreground: oklch(0.35 0.035 140);
+  --destructive: oklch(0.6 0.22 25);
+  --border: oklch(0.89 0.02 110);
+  --input: oklch(0.89 0.02 110);
+  --ring: oklch(0.55 0.1 150);
+  --chart-1: oklch(0.55 0.1 150);
+  --chart-2: oklch(0.68 0.06 130);
+  --chart-3: oklch(0.78 0.05 210);
+  --chart-4: oklch(0.8 0.07 20);
+  --chart-5: oklch(0.45 0.05 140);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.35 0.035 140);
+  --sidebar-primary: oklch(0.55 0.1 150);
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.95 0.01 277);
-  --sidebar-accent-foreground: oklch(0.3 0.05 277);
-  --sidebar-border: oklch(0.905 0.012 277);
-  --sidebar-ring: oklch(0.53 0.22 277);
-  --radius: 0.75rem;
+  --sidebar-accent: oklch(0.92 0.035 150);
+  --sidebar-accent-foreground: oklch(0.35 0.035 140);
+  --sidebar-border: oklch(0.89 0.02 110);
+  --sidebar-ring: oklch(0.55 0.1 150);
+  --radius: 1rem;
+  --meadow-dot-sage: oklch(0.35 0.035 140 / 0.06);
+  --meadow-dot-green: oklch(0.45 0.08 150 / 0.08);
+  --meadow-dot-blush: oklch(0.8 0.07 20 / 0.09);
+  --meadow-hero-bg: oklch(0.965 0.012 85);
 }
 
 .dark {
-  --background: oklch(0.16 0.015 277);
-  --foreground: oklch(0.96 0.01 277);
-  --card: oklch(0.2 0.02 277);
-  --card-foreground: oklch(0.96 0.01 277);
-  --popover: oklch(0.2 0.02 277);
-  --popover-foreground: oklch(0.96 0.01 277);
-  --primary: oklch(0.65 0.2 277);
-  --primary-foreground: oklch(0.15 0.02 277);
-  --secondary: oklch(0.26 0.02 277);
-  --secondary-foreground: oklch(0.96 0.01 277);
-  --muted: oklch(0.26 0.02 277);
-  --muted-foreground: oklch(0.7 0.02 277);
-  --accent: oklch(0.28 0.03 277);
-  --accent-foreground: oklch(0.96 0.01 277);
-  --destructive: oklch(0.7 0.2 27);
-  --border: oklch(1 0 0 / 10%);
+  --background: oklch(0.2 0.025 140);
+  --foreground: oklch(0.95 0.012 100);
+  --card: oklch(0.24 0.028 140);
+  --card-foreground: oklch(0.95 0.012 100);
+  --popover: oklch(0.24 0.028 140);
+  --popover-foreground: oklch(0.95 0.012 100);
+  --primary: oklch(0.62 0.07 150);
+  --primary-foreground: oklch(0.18 0.02 140);
+  --secondary: oklch(0.55 0.06 130);
+  --secondary-foreground: oklch(0.97 0.01 100);
+  --muted: oklch(0.28 0.025 140);
+  --muted-foreground: oklch(0.74 0.025 120);
+  --accent: oklch(0.33 0.05 150);
+  --accent-foreground: oklch(0.95 0.012 100);
+  --destructive: oklch(0.7 0.2 25);
+  --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.65 0.2 277);
-  --chart-1: oklch(0.65 0.2 277);
-  --chart-2: oklch(0.72 0.12 200);
-  --chart-3: oklch(0.74 0.17 160);
-  --chart-4: oklch(0.82 0.14 80);
-  --chart-5: oklch(0.72 0.15 330);
-  --sidebar: oklch(0.2 0.02 277);
-  --sidebar-foreground: oklch(0.96 0.01 277);
-  --sidebar-primary: oklch(0.65 0.2 277);
-  --sidebar-primary-foreground: oklch(0.15 0.02 277);
-  --sidebar-accent: oklch(0.26 0.02 277);
-  --sidebar-accent-foreground: oklch(0.96 0.01 277);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.65 0.2 277);
+  --ring: oklch(0.62 0.07 150);
+  --chart-1: oklch(0.62 0.07 150);
+  --chart-2: oklch(0.66 0.07 140);
+  --chart-3: oklch(0.75 0.06 215);
+  --chart-4: oklch(0.78 0.07 20);
+  --chart-5: oklch(0.86 0.03 120);
+  --sidebar: oklch(0.24 0.028 140);
+  --sidebar-foreground: oklch(0.95 0.012 100);
+  --sidebar-primary: oklch(0.62 0.07 150);
+  --sidebar-primary-foreground: oklch(0.18 0.02 140);
+  --sidebar-accent: oklch(0.33 0.05 150);
+  --sidebar-accent-foreground: oklch(0.95 0.012 100);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.62 0.07 150);
+  --meadow-dot-sage: oklch(0.9 0.02 120 / 0.05);
+  --meadow-dot-green: oklch(0.62 0.07 150 / 0.12);
+  --meadow-dot-blush: oklch(0.8 0.07 20 / 0.07);
+  --meadow-hero-bg: oklch(0.2 0.025 140);
 }
 
 html,
@@ -82,8 +90,8 @@ body,
 }
 
 @theme inline {
-  --font-heading: "Inter", system-ui, -apple-system, sans-serif;
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-heading: "Nunito Sans", "Inter", system-ui, -apple-system, sans-serif;
+  --font-sans: "Nunito Sans", "Inter", system-ui, -apple-system, sans-serif;
   --ease-venture: cubic-bezier(0.16, 1, 0.3, 1);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -157,32 +165,21 @@ body,
 }
 
 /* Decorative soft gradient blobs used for the page background */
-@utility bg-grid {
-  background-image: linear-gradient(
-      to right,
-      oklch(0.19 0.015 277 / 0.04) 1px,
+/* Faint tri-color wildflower-dot meadow texture (green, blush, sage)
+   Pinned by the edelweiss-meadow direction; intentional, not a grid. */
+/* impeccable-disable-next-line codex-grid-background */
+@utility bg-meadow {
+  background-image: radial-gradient(
+      var(--meadow-dot-green) 1px,
       transparent 1px
     ),
-    linear-gradient(to bottom, oklch(0.19 0.015 277 / 0.04) 1px, transparent 1px);
-  background-size: 48px 48px;
+    radial-gradient(var(--meadow-dot-blush) 1px, transparent 1px),
+    radial-gradient(var(--meadow-dot-sage) 1px, transparent 1px);
+  background-size: 56px 56px, 56px 56px, 28px 28px;
+  background-position: 0 0, 28px 28px, 0 0;
 }
 
-/* Hero: vivid indigo gradient with radial glows, reads well with white text */
-@utility bg-hero {
-  background-color: oklch(0.22 0.06 277);
-  background-image: radial-gradient(
-      80% 60% at 15% 0%,
-      oklch(0.65 0.2 277 / 0.55),
-      transparent 60%
-    ),
-    radial-gradient(
-      70% 65% at 95% 10%,
-      oklch(0.72 0.17 230 / 0.4),
-      transparent 60%
-    ),
-    radial-gradient(
-      60% 70% at 50% 110%,
-      oklch(0.7 0.22 320 / 0.3),
-      transparent 65%
-    );
+/* Flat, quiet surface used by the home hero and profile banner. */
+@utility bg-meadow-hero {
+  background-color: var(--meadow-hero-bg);
 }
