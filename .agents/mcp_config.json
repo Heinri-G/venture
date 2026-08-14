@@ -25,6 +25,31 @@
         "--config",
         "{\"netlifyToken\":\"YOUR_NETLIFY_API_TOKEN\"}"
       ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp"
+      ]
+    },
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp"
+      ],
+      "env": {
+        "SUPABASE_URL": "https://mxtwkwhidqxpcjmjferw.supabase.co",
+        "SUPABASE_ACCESS_TOKEN": "sb_publishable_jiIeaDGrWoflSKFwc48LzQ_BrUetrrM"
+      }
+    },
+    "shadcn": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "shadcn-ui-mcp-server"
+      ]
     }
   }
 }
