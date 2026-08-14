@@ -62,6 +62,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
+  // Logged-out visitors only get the marketing-relevant links (Home + Map);
+  // the full app chrome is reserved for signed-in users.
+  const navLinks = !loading && user ? NAV_LINKS : NAV_LINKS.filter((l) => l.to === '/' || l.to === '/map');
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     navigate('/');
@@ -84,7 +88,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex">
-            {NAV_LINKS.map((link) => (
+            {navLinks.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
@@ -159,9 +163,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <Button asChild size="sm" className="hidden rounded-full px-4 md:inline-flex">
-                <Link to="/login">Sign in</Link>
-              </Button>
+              <>
+                <Button asChild size="sm" variant="ghost" className="hidden rounded-full px-4 md:inline-flex">
+                  <Link to="/login">Sign in</Link>
+                </Button>
+                <Button asChild size="sm" className="hidden rounded-full px-4 md:inline-flex">
+                  <Link to="/signup">Create account</Link>
+                </Button>
+              </>
             )}
 
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -177,7 +186,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <SheetContent side="right" showCloseButton={false} className="w-72 gap-0 p-0">
                 <SheetTitle className="px-5 pt-5 text-base font-semibold">Menu</SheetTitle>
                 <nav className="flex flex-col gap-1 p-3">
-                  {NAV_LINKS.map((link) => (
+                  {navLinks.map((link) => (
                     <NavLink
                       key={link.to}
                       to={link.to}

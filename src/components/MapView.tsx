@@ -44,6 +44,9 @@ const CLUSTER_COUNT_LAYER = 'mapview-cluster-count';
 const POINT_LAYER = 'mapview-points';
 let searchMarkerCounter = 0;
 
+// Demo markers must never reach a production surface — dev builds only.
+const DEMO_MARKERS_ENABLED = import.meta.env.DEV;
+
 const DEMO_MARKERS: MapMarker[] = [
   { id: 'demo-1', name: 'Demo Coffee — Mitte', latitude: 52.5208, longitude: 13.4095, category: 'Coffee Shop' },
   { id: 'demo-2', name: 'Demo Park', latitude: 52.5163, longitude: 13.3777, category: 'Park' },
@@ -120,7 +123,7 @@ export default function MapView({
             error.code === 'PGRST205' ||
             status === 404 ||
             (error.message ?? '').includes('Could not find the table');
-          if (mounted) setLoadedMarkers(tableMissing ? DEMO_MARKERS : []);
+          if (mounted) setLoadedMarkers(tableMissing && DEMO_MARKERS_ENABLED ? DEMO_MARKERS : []);
         } else if (mounted && data) {
           setLoadedMarkers(
             data.map(
@@ -148,7 +151,7 @@ export default function MapView({
         }
       } catch (err) {
         console.error('Error loading places', err);
-        if (mounted) setLoadedMarkers(DEMO_MARKERS);
+        if (mounted) setLoadedMarkers(DEMO_MARKERS_ENABLED ? DEMO_MARKERS : []);
       } finally {
         if (mounted) setIsLoading(false);
       }
