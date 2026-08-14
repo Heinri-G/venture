@@ -40,8 +40,8 @@
         "@supabase/mcp"
       ],
       "env": {
-        "SUPABASE_URL": "https://mxtwkwhidqxpcjmjferw.supabase.co",
-        "SUPABASE_ACCESS_TOKEN": "sb_publishable_jiIeaDGrWoflSKFwc48LzQ_BrUetrrM"
+"SUPABASE_URL": "$VITE_SUPABASE_URL",
+    "SUPABASE_ACCESS_TOKEN": "$VITE_SUPABASE_ANON_KEY"
       }
     },
     "shadcn": {
