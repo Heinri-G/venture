@@ -1,5 +1,6 @@
 import { supabase } from './supabase/client';
 import { createNotification } from './notifications';
+import type { PlaceProvider } from './savedPlaces';
 import type {
   Adventure,
   AdventureShareRow,
@@ -43,13 +44,14 @@ export interface PublicAdventure {
       notes: string | null;
       place: {
         id: string;
-        foursquare_fsq_id: string | null;
+        provider: PlaceProvider | null;
+        provider_place_id: string | null;
+        icon: string | null;
         name: string;
         address: string | null;
         latitude: number;
         longitude: number;
         category: string | null;
-        photo_url: string | null;
         created_at: string;
       };
     };
@@ -424,8 +426,8 @@ export async function fetchPublicAdventureByToken(
         saved_place:saved_places(
           id, user_id, place_id, rating, notes,
           place:places(
-            id, foursquare_fsq_id, name, address, latitude, longitude,
-            category, photo_url, created_at
+            id, provider, provider_place_id, icon, name, address, latitude, longitude,
+            category, created_at
           )
         )
       )
@@ -517,8 +519,8 @@ export async function loadAdventureWithAccess(
             saved_place:saved_places(
               id, user_id, place_id, rating, notes, created_at, updated_at,
               place:places(
-                id, foursquare_fsq_id, name, address, latitude, longitude,
-                category, photo_url, created_at
+                id, provider, provider_place_id, icon, name, address, latitude, longitude,
+                category, created_at
               )
             )
           ),

@@ -1,92 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { motion } from 'motion/react';
 import {
   ArrowRight,
   Bookmark,
-  Coffee,
   Compass,
   Globe,
   Link2,
   MapPin,
-  Moon,
   Route,
   Share2,
   Star,
-  Trees,
-  Utensils,
   Users,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { searchPlaces, type PlaceSuggestion } from './lib/places';
 import { Avatar, AvatarFallback, AvatarGroup } from './components/ui/avatar';
 import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
 import { Card } from './components/ui/card';
-import { Skeleton } from './components/ui/skeleton';
 import { cn } from './lib/utils';
-
-const TILE_GRADIENTS = [
-  'from-secondary/40 via-primary/10 to-chart-3/25',
-  'from-chart-3/30 via-primary/10 to-secondary/40',
-  'from-primary/25 via-chart-4/15 to-chart-3/25',
-  'from-chart-2/35 via-secondary/20 to-chart-3/25',
-];
-
-function categoryIcon(category: string | undefined) {
-  if (!category) return MapPin;
-  const c = category.toLowerCase();
-  if (c.includes('coffee') || c.includes('caf') || c.includes('tea')) return Coffee;
-  if (
-    c.includes('restaurant') ||
-    c.includes('dining') ||
-    c.includes('food') ||
-    c.includes('bar') ||
-    c.includes('bakery')
-  )
-    return Utensils;
-  if (c.includes('landmark') || c.includes('museum') || c.includes('historic')) return Compass;
-  if (c.includes('park') || c.includes('outdoors') || c.includes('garden')) return Trees;
-  if (c.includes('night') || c.includes('club')) return Moon;
-  return MapPin;
-}
-
-/** Fetches a small set of real Foursquare places once, to preview the map's library. */
-function useShowcasePlaces() {
-  const [places, setPlaces] = useState<PlaceSuggestion[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [coffee, dining, landmark] = await Promise.all([
-          searchPlaces('', { category: '13032', limit: 4 }),
-          searchPlaces('', { category: '13000', limit: 4 }),
-          searchPlaces('', { category: '16000', limit: 4 }),
-        ]);
-        if (cancelled) return;
-        const seen = new Set<string>();
-        const merged: PlaceSuggestion[] = [];
-        for (const p of [...coffee, ...dining, ...landmark]) {
-          if (!seen.has(p.fsq_id)) {
-            seen.add(p.fsq_id);
-            merged.push(p);
-          }
-        }
-        setPlaces(merged.slice(0, 8));
-      } catch {
-        // Graceful fallback: the rail simply stays hidden.
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { places, loading };
-}
 
 const fadeUp = {
   initial: { opacity: 0, y: 24 },
@@ -227,45 +158,24 @@ function AdventuresStrip() {
   );
 }
 
-function PlacesRail({ places, loading }: { places: PlaceSuggestion[]; loading: boolean }) {
-  if (!loading && places.length === 0) return null;
+function PlacesRail() {
   return (
-    <Card className="p-5">
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-heading text-sm font-semibold">Real places, from the map</p>
-        <Badge variant="outline" className="rounded-full">
-          Live · Foursquare
-        </Badge>
+    <Card className="flex flex-col gap-3 p-5">
+      <div className="flex items-center gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <MapPin className="size-4" />
+        </span>
+        <div>
+          <p className="font-heading text-sm font-semibold">Keep your own library</p>
+          <p className="text-xs text-muted-foreground">Share from Google Maps, rate &amp; note it</p>
+        </div>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {loading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="aspect-[4/3] overflow-hidden rounded-xl">
-                <Skeleton className="h-full w-full" />
-              </div>
-            ))
-          : places.map((place, i) => {
-              const Icon = categoryIcon(place.category);
-              return (
-                <div
-                  key={place.fsq_id}
-                  className="relative aspect-[4/3] overflow-hidden rounded-xl ring-1 ring-border"
-                >
-                  <div
-                    className={cn(
-                      'absolute inset-0 bg-gradient-to-br',
-                      TILE_GRADIENTS[i % TILE_GRADIENTS.length]
-                    )}
-                  />
-                  <Icon className="absolute left-1/2 top-1/2 size-7 -translate-x-1/2 -translate-y-1/2 text-foreground/30" />
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-2.5 pb-2 pt-8">
-                    <p className="truncate text-xs font-semibold text-white">{place.name}</p>
-                    <p className="truncate text-[11px] text-white/80">{place.category}</p>
-                  </div>
-                </div>
-              );
-            })}
-      </div>
+      <Button asChild variant="outline" size="sm" className="rounded-full">
+        <Link to="/map">
+          Open your saved places
+          <ArrowRight />
+        </Link>
+      </Button>
     </Card>
   );
 }
@@ -365,8 +275,6 @@ function FeatureVisual({ index }: { index: number }) {
 }
 
 export default function Home() {
-  const { places, loading } = useShowcasePlaces();
-
   return (
     <>
       {/* Hero */}
@@ -419,21 +327,21 @@ export default function Home() {
           <SectionHeading
             eyebrow="The travel library"
             title="Every place worth keeping"
-            subtitle="Save spots on the map, rate them with notes, and turn them into adventures you share."
+            subtitle="Share a place from Google Maps, rate it with notes, and turn it into an adventure you share."
           />
 
-          <div className="mt-10 grid gap-5 lg:grid-cols-3">
+          <div className="mt-10 grid gap-5 lg:grid-cols-2">
             <motion.div {...fadeUp} className="lg:col-span-2">
               <SavedPlaceCard />
             </motion.div>
-            <motion.div {...fadeUp} className="lg:col-span-1">
+            <motion.div {...fadeUp}>
               <ShareChip />
             </motion.div>
-            <motion.div {...fadeUp} className="lg:col-span-1">
+            <motion.div {...fadeUp}>
               <AdventuresStrip />
             </motion.div>
             <motion.div {...fadeUp} className="lg:col-span-2">
-              <PlacesRail places={places} loading={loading} />
+              <PlacesRail />
             </motion.div>
           </div>
         </div>

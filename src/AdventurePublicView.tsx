@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import AdventureMap, { type AdventureMapPlace } from './components/AdventureMap';
+import { PlaceIcon } from './components/PlaceIcon';
 import { Avatar, AvatarFallback, AvatarImage } from './components/ui/avatar';
 import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
@@ -20,6 +21,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from './components/ui/sh
 import { Skeleton } from './components/ui/skeleton';
 import { useAuthUser } from './lib/useAuthUser';
 import { haversineKm } from './lib/distance';
+import { placeIconKey } from './lib/placeIcons';
 import {
   copyAdventure,
   fetchPublicAdventureByToken,
@@ -435,18 +437,11 @@ export default function AdventurePublicView() {
                           )}
                         </span>
 
-                        {place.photo_url ? (
-                          <img
-                            src={place.photo_url}
-                            alt=""
-                            loading="lazy"
-                            className="mt-0.5 size-12 shrink-0 rounded-lg object-cover"
-                          />
-                        ) : (
-                          <span className="mt-0.5 flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                            <MapPin className="size-5" />
-                          </span>
-                        )}
+                        <PlaceIcon
+                          icon={placeIconKey(place.icon, place.category)}
+                          className="mt-0.5 size-12 shrink-0 rounded-lg"
+                          iconClassName="size-5"
+                        />
                       </button>
                     </li>
                   );

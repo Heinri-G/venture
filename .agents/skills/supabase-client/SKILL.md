@@ -20,13 +20,15 @@ Filtering on a related table's column **requires selecting that relation explici
 .from('saved_places')
 .select('*')
 .eq('user_id', userId)
-.eq('places.foursquare_fsq_id', fsqId);
+.eq('places.provider', 'google')
+.eq('places.provider_place_id', placeId);
 
 // RIGHT — select the relation, use !inner for an inner join
 .from('saved_places')
-.select('*, places!inner(foursquare_fsq_id)')
+.select('*, places!inner(provider, provider_place_id)')
 .eq('user_id', userId)
-.eq('places.foursquare_fsq_id', fsqId)
+.eq('places.provider', 'google')
+.eq('places.provider_place_id', placeId)
 .maybeSingle();
 ```
 
@@ -36,22 +38,25 @@ Filtering on a related table's column **requires selecting that relation explici
 - `.single()` throws when zero rows are found — do not use it for lookups.
 
 ## Get-or-Create Pattern
-Keyed on the unique business key (`foursquare_fsq_id`): read first, insert only if missing, return the canonical `places.id`.
+Keyed on the unique business key (`provider` + `provider_place_id`, e.g. `google` + a Google place id): read first, insert only if missing, return the canonical `places.id`.
 
 ```ts
 const { data: existing } = await supabase
   .from('places')
   .select('id')
-  .eq('foursquare_fsq_id', fsqId)
+  .eq('provider', provider)
+  .eq('provider_place_id', providerPlaceId)
   .maybeSingle();
 if (existing) return existing.id;
 
 const { data: created, error } = await supabase
   .from('places')
-  .insert({ foursquare_fsq_id: fsqId, name, address, latitude, longitude, category, photo_url })
+  .insert({ provider, provider_place_id, name, address, latitude, longitude, category, icon })
   .select('id')
   .single();
 ```
+
+Note: a partial unique index on `(provider, provider_place_id)` backs this; `provider` is NULL for manually added places, so use the app-layer `getOrCreatePlace` for those instead of assuming a DB constraint applies.
 
 ## Upsert Save Pattern
 `UNIQUE(user_id, place_id)` on `saved_places` → use `upsert` with `onConflict` so save/update is one call.
@@ -73,4 +78,4 @@ await supabase
 - Deleting: `.delete().eq('user_id', userId).eq('place_id', placeId)`.
 
 ## Reference Implementation
-`src/lib/savedPlaces.ts` is the canonical example: `getOrCreatePlace`, `fetchSavedPlace`, `findSavedPlaceByFsqId`, `upsertSavedPlace`, `removeSavedPlace`, `getSavedPlaces`.
+`src/lib/savedPlaces.ts` is the canonical example: `getOrCreatePlace`, `findPlaceByProviderId`, `findSavedPlaceByProviderId`, `fetchSavedPlace`, `upsertSavedPlace`, `removeSavedPlace`, `fetchSavedPlaces`, `searchSavedPlaces`, `updateSavedPlace`, `deleteSavedPlace`.

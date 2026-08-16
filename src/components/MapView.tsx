@@ -1,350 +1,169 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Popup } from 'maplibre-gl';
-import type { GeoJSONSource, MapMouseEvent } from 'maplibre-gl';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Marker } from 'maplibre-gl';
+import type { MapMouseEvent } from 'maplibre-gl';
+import { createRoot, type Root } from 'react-dom/client';
 import { useNavigate } from 'react-router-dom';
-import { Navigation, Home } from 'lucide-react';
-import { supabase } from '../lib/supabase/client';
-import { Button } from './ui/button';
+import { Crosshair, Home, Loader2, MapPin, Navigation, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import PlacesSearch from './PlacesSearch';
-import PlaceDetails from './PlaceDetails';
+import SavedPlaceDetails from './SavedPlaceDetails';
+import AddPlaceSheet, { type AddPlaceInitial } from './AddPlaceSheet';
 import { useMapLibre } from '../hooks/useMapLibre';
-import { PRIMARY, MARKER_STROKE } from '../lib/map/colors';
-import type { PlaceResult } from '../lib/places';
-import type { FeatureCollection } from 'geojson';
-
-export interface MapMarker {
-  id: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  category?: string;
-  photoUrl?: string;
-  address?: string;
-  fsqId?: string;
-  placeId?: string;
-  saved?: boolean;
-}
-
-interface MapViewProps {
-  markers?: MapMarker[];
-  selectedLocation?: { latitude: number; longitude: number; name?: string } | null;
-  onSelectMarker?: (markerId: string) => void;
-  onMapClick?: (lat: number, lng: number) => void;
-  fullscreen?: boolean;
-  showSearch?: boolean;
-}
+import { useAuthUser } from '../lib/useAuthUser';
+import { getPlaceIcon, placeIconKey } from '../lib/placeIcons';
+import {
+  deleteSavedPlace,
+  fetchSavedPlaces,
+  type SavedPlaceWithDetails,
+} from '../lib/savedPlaces';
+import { cn } from '../lib/utils';
 
 const DEFAULT_CENTER: [number, number] = [13.405, 52.52]; // Berlin
 const DEFAULT_ZOOM = 12;
-const CLUSTER_RADIUS = 50;
-const PLACES_SOURCE = 'mapview-places';
-const CLUSTER_LAYER = 'mapview-clusters';
-const CLUSTER_COUNT_LAYER = 'mapview-cluster-count';
-const POINT_LAYER = 'mapview-points';
-let searchMarkerCounter = 0;
+const FULL_SAVED_LIMIT = 1000;
 
-// Demo markers must never reach a production surface — dev builds only.
-const DEMO_MARKERS_ENABLED = import.meta.env.DEV;
-
-const DEMO_MARKERS: MapMarker[] = [
-  { id: 'demo-1', name: 'Demo Coffee — Mitte', latitude: 52.5208, longitude: 13.4095, category: 'Coffee Shop' },
-  { id: 'demo-2', name: 'Demo Park', latitude: 52.5163, longitude: 13.3777, category: 'Park' },
-  { id: 'demo-3', name: 'Demo Museum', latitude: 52.5194, longitude: 13.401, category: 'Museum' },
-];
-
-function buildPopupContent(marker: MapMarker): HTMLElement {
-  const root = document.createElement('div');
-  root.className = 'text-sm';
-  const name = document.createElement('div');
-  name.className = 'font-semibold';
-  name.textContent = marker.name;
-  root.appendChild(name);
-  if (marker.category) {
-    const category = document.createElement('div');
-    category.className = 'text-muted-foreground';
-    category.textContent = marker.category;
-    root.appendChild(category);
-  }
-  if (marker.photoUrl) {
-    const img = document.createElement('img');
-    img.src = marker.photoUrl;
-    img.alt = marker.name;
-    img.className = 'mt-2 h-24 w-full rounded-lg object-cover';
-    root.appendChild(img);
-  }
-  return root;
+function unmountLater(root: Root) {
+  requestAnimationFrame(() => {
+    try {
+      root.unmount();
+    } catch {
+      // already unmounted
+    }
+  });
 }
 
-export default function MapView({
-  markers,
-  selectedLocation,
-  onSelectMarker,
-  onMapClick,
-  fullscreen = false,
-  showSearch = false,
-}: MapViewProps) {
+function createMarkerElement(
+  place: SavedPlaceWithDetails,
+  selected: boolean,
+  onClick: () => void
+): { el: HTMLElement; cleanup: () => void } {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.setAttribute('aria-label', place.place.name);
+  el.className = cn(
+    'flex size-9 cursor-pointer items-center justify-center rounded-full border-2 border-background bg-primary text-primary-foreground shadow-lg',
+    selected && 'ring-4 ring-primary/30'
+  );
+  el.addEventListener('click', onClick);
+
+  const iconKey = placeIconKey(place.place.icon, place.place.category);
+  const Icon = getPlaceIcon(iconKey);
+  const root = createRoot(el);
+  root.render(<Icon className="size-4" aria-hidden />);
+
+  return { el, cleanup: () => unmountLater(root) };
+}
+
+export default function MapView() {
   const navigate = useNavigate();
+  const { user } = useAuthUser();
   const { containerRef, map } = useMapLibre({ center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM });
-  const [loadedMarkers, setLoadedMarkers] = useState<MapMarker[]>([]);
-  const [searchMarkers, setSearchMarkers] = useState<MapMarker[]>([]);
-  const [mapCenter, setMapCenter] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [selectedPlace, setSelectedPlace] = useState<PlaceResult | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const hasExternalMarkers = markers !== undefined;
-  const searchResultsRef = useRef<Map<string, PlaceResult>>(new Map());
-  const popupRef = useRef<Popup | null>(null);
 
-  const onSelectMarkerRef = useRef(onSelectMarker);
+  const [places, setPlaces] = useState<SavedPlaceWithDetails[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedPlace, setSelectedPlace] = useState<SavedPlaceWithDetails | null>(null);
+  const [flyTarget, setFlyTarget] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [addInitial, setAddInitial] = useState<AddPlaceInitial | null>(null);
+  const [pinDropMode, setPinDropMode] = useState(false);
+  const pinDropRef = useRef<((lat: number, lng: number) => void) | null>(null);
+
+  const [deleteTarget, setDeleteTarget] = useState<SavedPlaceWithDetails | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Load the signed-in user's saved places — the map shows only these.
   useEffect(() => {
-    onSelectMarkerRef.current = onSelectMarker;
-  });
-  const onMapClickRef = useRef(onMapClick);
-  useEffect(() => {
-    onMapClickRef.current = onMapClick;
-  });
-
-  // When no markers are provided, load public places from Supabase (demo fallback).
-  useEffect(() => {
-    if (hasExternalMarkers) return;
-
-    let mounted = true;
-    async function loadPlaces() {
-      setIsLoading(true);
-      try {
-        const { data, error, status } = await supabase
-          .from('places')
-          .select('id, name, latitude, longitude, category, photo_url, address, foursquare_fsq_id')
-          .limit(500);
-
-        if (error) {
-          console.error('Supabase fetch error', error);
-          const tableMissing =
-            error.code === 'PGRST205' ||
-            status === 404 ||
-            (error.message ?? '').includes('Could not find the table');
-          if (mounted) setLoadedMarkers(tableMissing && DEMO_MARKERS_ENABLED ? DEMO_MARKERS : []);
-        } else if (mounted && data) {
-          setLoadedMarkers(
-            data.map(
-              (p: {
-                id: unknown;
-                name: unknown;
-                latitude: unknown;
-                longitude: unknown;
-                category: unknown;
-                photo_url: unknown;
-                address: unknown;
-                foursquare_fsq_id: unknown;
-              }) => ({
-                id: String(p.id),
-                name: String(p.name),
-                latitude: Number(p.latitude),
-                longitude: Number(p.longitude),
-                category: p.category ? String(p.category) : undefined,
-                photoUrl: p.photo_url ? String(p.photo_url) : undefined,
-                address: p.address ? String(p.address) : undefined,
-                fsqId: p.foursquare_fsq_id ? String(p.foursquare_fsq_id) : undefined,
-              })
-            )
-          );
-        }
-      } catch (err) {
-        console.error('Error loading places', err);
-        if (mounted) setLoadedMarkers(DEMO_MARKERS_ENABLED ? DEMO_MARKERS : []);
-      } finally {
-        if (mounted) setIsLoading(false);
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await fetchSavedPlaces(user.id, 0, FULL_SAVED_LIMIT, undefined, 'recent');
+      if (cancelled) return;
+      setLoading(false);
+      if (error) {
+        console.error('Error loading saved places:', error);
+        return;
       }
-    }
-
-    loadPlaces();
+      setPlaces(data);
+    })();
     return () => {
-      mounted = false;
+      cancelled = true;
     };
-  }, [hasExternalMarkers]);
+  }, [user]);
 
-  const handleMarkerClick = useCallback((marker: MapMarker) => {
-    if (onSelectMarkerRef.current) {
-      onSelectMarkerRef.current(marker.id);
-      return;
-    }
-    const stored = marker.fsqId ? searchResultsRef.current.get(marker.fsqId) : undefined;
-    setSelectedPlace({
-      fsq_id: stored?.fsq_id || marker.fsqId,
-      name: marker.name,
-      address: stored?.address || marker.address,
-      latitude: marker.latitude,
-      longitude: marker.longitude,
-      category: stored?.category || marker.category,
-      photoUrl: stored?.photoUrl || marker.photoUrl,
-      phone: stored?.phone,
-      website: stored?.website,
-      hours: stored?.hours,
-      description: stored?.description,
-    });
+  const handleSelectPlace = useCallback((place: SavedPlaceWithDetails) => {
+    setSelectedPlace(place);
   }, []);
 
-  const shownMarkers = useMemo(
-    () => (markers ? markers : [...loadedMarkers, ...searchMarkers]),
-    [markers, loadedMarkers, searchMarkers]
-  );
+  const handleSearchSelect = useCallback((place: SavedPlaceWithDetails) => {
+    setFlyTarget({
+      latitude: place.place.latitude,
+      longitude: place.place.longitude,
+    });
+    setSelectedPlace(place);
+  }, []);
 
-  const featureCollection = useMemo<FeatureCollection>(
-    () => ({
-      type: 'FeatureCollection',
-      features: shownMarkers.map((m) => ({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [m.longitude, m.latitude] },
-        properties: {
-          id: m.id,
-          name: m.name,
-          category: m.category ?? null,
-          photoUrl: m.photoUrl ?? null,
-          address: m.address ?? null,
-          fsqId: m.fsqId ?? null,
-        },
-      })),
-    }),
-    [shownMarkers]
-  );
-
-  // Cluster source + layers. Re-applies after a style reload (theme flip).
+  // HTML icon markers, rebuilt when the selection or set changes.
   useEffect(() => {
     if (!map) return;
-
-    const apply = () => {
-      if (!map.getSource(PLACES_SOURCE)) {
-        map.addSource(PLACES_SOURCE, {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] },
-          cluster: true,
-          clusterMaxZoom: 14,
-          clusterRadius: CLUSTER_RADIUS,
-        });
-        map.addLayer({
-          id: CLUSTER_LAYER,
-          type: 'circle',
-          source: PLACES_SOURCE,
-          filter: ['has', 'point_count'],
-          paint: {
-            'circle-color': PRIMARY,
-            'circle-radius': ['step', ['get', 'point_count'], 20, 10, 26, 100, 34],
-            'circle-stroke-width': 2,
-            'circle-stroke-color': MARKER_STROKE,
-          },
-        });
-        map.addLayer({
-          id: CLUSTER_COUNT_LAYER,
-          type: 'symbol',
-          source: PLACES_SOURCE,
-          filter: ['has', 'point_count'],
-          layout: {
-            'text-field': '{point_count_abbreviated}',
-            'text-size': 12,
-            'text-font': ['Noto Sans Regular'],
-          },
-          paint: { 'text-color': '#ffffff' },
-        });
-        map.addLayer({
-          id: POINT_LAYER,
-          type: 'circle',
-          source: PLACES_SOURCE,
-          filter: ['!', ['has', 'point_count']],
-          paint: {
-            'circle-color': PRIMARY,
-            'circle-radius': 7,
-            'circle-stroke-width': 2,
-            'circle-stroke-color': MARKER_STROKE,
-          },
-        });
-      }
-      (map.getSource(PLACES_SOURCE) as GeoJSONSource).setData(featureCollection);
-    };
-
-    map.on('style.load', apply);
-    if (map.isStyleLoaded()) apply();
+    const markers = places.map((place) => {
+      const { el, cleanup } = createMarkerElement(place, place.id === selectedPlace?.id, () =>
+        handleSelectPlace(place)
+      );
+      const marker = new Marker({ element: el, anchor: 'center' })
+        .setLngLat([place.place.longitude, place.place.latitude])
+        .addTo(map);
+      return { marker, cleanup };
+    });
     return () => {
-      map.off('style.load', apply);
+      markers.forEach(({ marker, cleanup }) => {
+        marker.remove();
+        cleanup();
+      });
     };
-  }, [map, featureCollection]);
+  }, [map, places, selectedPlace, handleSelectPlace]);
 
-  // Interactions: cluster zoom, marker popup + sheet, empty-map click, moveend.
+  // Pin-drop mode: the next canvas click sets the coordinates and opens AddPlaceSheet.
+  useEffect(() => {
+    pinDropRef.current = pinDropMode
+      ? (lat, lng) => {
+          setPinDropMode(false);
+          setAddInitial({ latitude: lat, longitude: lng });
+          setAddOpen(true);
+        }
+      : null;
+  }, [pinDropMode]);
+
   useEffect(() => {
     if (!map) return;
-
     const handleClick = (e: MapMouseEvent) => {
-      popupRef.current?.remove();
-      popupRef.current = null;
-
-      const clusterFeatures = map.queryRenderedFeatures(e.point, { layers: [CLUSTER_LAYER] });
-      if (clusterFeatures.length > 0) {
-        e.preventDefault();
-        const clusterId = clusterFeatures[0].properties?.cluster_id as number;
-        const source = map.getSource(PLACES_SOURCE) as GeoJSONSource;
-        source
-          .getClusterExpansionZoom(clusterId)
-          .then((zoom) => {
-            map.easeTo({
-              center: (clusterFeatures[0].geometry as { type: 'Point'; coordinates: [number, number] })
-                .coordinates,
-              zoom,
-            });
-          })
-          .catch(() => undefined);
-        return;
-      }
-
-      const pointFeatures = map.queryRenderedFeatures(e.point, { layers: [POINT_LAYER] });
-      if (pointFeatures.length > 0) {
-        e.preventDefault();
-        const feature = pointFeatures[0];
-        const props = feature.properties as Record<string, unknown>;
-        const marker: MapMarker = {
-          id: String(props.id ?? ''),
-          name: String(props.name ?? ''),
-          latitude: (feature.geometry as { type: 'Point'; coordinates: [number, number] }).coordinates[1],
-          longitude: (feature.geometry as { type: 'Point'; coordinates: [number, number] }).coordinates[0],
-          category: props.category ? String(props.category) : undefined,
-          photoUrl: props.photoUrl ? String(props.photoUrl) : undefined,
-          address: props.address ? String(props.address) : undefined,
-          fsqId: props.fsqId ? String(props.fsqId) : undefined,
-        };
-        if (!marker.id) return;
-        const popup = new Popup({ offset: 25 })
-          .setLngLat([marker.longitude, marker.latitude])
-          .setDOMContent(buildPopupContent(marker));
-        popup.addTo(map);
-        popupRef.current = popup;
-        handleMarkerClick(marker);
-        return;
-      }
-
-      onMapClickRef.current?.(e.lngLat.lat, e.lngLat.lng);
+      pinDropRef.current?.(e.lngLat.lat, e.lngLat.lng);
     };
-
-    const handleMoveEnd = () => {
-      const c = map.getCenter();
-      setMapCenter({ latitude: c.lat, longitude: c.lng });
-    };
-
     map.on('click', handleClick);
-    map.on('moveend', handleMoveEnd);
-    handleMoveEnd();
     return () => {
       map.off('click', handleClick);
-      map.off('moveend', handleMoveEnd);
     };
-  }, [map, handleMarkerClick]);
+  }, [map]);
 
-  // Fly to a selected location whenever it changes.
+  // Fly to a target whenever it changes.
   useEffect(() => {
-    if (!map || !selectedLocation) return;
+    if (!map || !flyTarget) return;
     map.flyTo({
-      center: [selectedLocation.longitude, selectedLocation.latitude],
+      center: [flyTarget.longitude, flyTarget.latitude],
       zoom: 14,
-      duration: 1500,
+      duration: 1200,
     });
-  }, [map, selectedLocation]);
+  }, [map, flyTarget]);
 
   const handleLocateMe = () => {
     if (!navigator.geolocation) return;
@@ -361,71 +180,90 @@ export default function MapView({
     );
   };
 
-  const handlePlaceSelect = (place: PlaceResult) => {
-    const marker: MapMarker = {
-      id: place.fsq_id || `search-${++searchMarkerCounter}`,
-      name: place.name,
-      latitude: place.latitude,
-      longitude: place.longitude,
-      category: place.category,
-      photoUrl: place.photoUrl,
-      address: place.address,
-      fsqId: place.fsq_id,
-      placeId: place.fsq_id,
-    };
-    setSearchMarkers((prev) => (prev.some((m) => m.id === marker.id) ? prev : [...prev, marker]));
-    if (place.fsq_id) {
-      searchResultsRef.current.set(place.fsq_id, place);
+  const handleAddSaved = (place: SavedPlaceWithDetails) => {
+    setPlaces((prev) => (prev.some((p) => p.id === place.id) ? prev : [place, ...prev]));
+    setFlyTarget({ latitude: place.place.latitude, longitude: place.place.longitude });
+  };
+
+  const handleUpdate = useCallback((updated: SavedPlaceWithDetails) => {
+    setPlaces((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    setSelectedPlace(updated);
+  }, []);
+
+  const handleViewOnMap = useCallback((place: SavedPlaceWithDetails) => {
+    setSelectedPlace(null);
+    setFlyTarget({ latitude: place.place.latitude, longitude: place.place.longitude });
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await deleteSavedPlace(deleteTarget.id);
+    setDeleting(false);
+    if (error) {
+      toast.error('Could not remove place', { description: error });
+      return;
     }
-    map?.flyTo({
-      center: [place.longitude, place.latitude],
-      zoom: 14,
-      duration: 1500,
-    });
-    setSelectedPlace(place);
+    const removed = deleteTarget;
+    setPlaces((prev) => prev.filter((p) => p.id !== removed.id));
+    if (selectedPlace?.id === removed.id) setSelectedPlace(null);
+    setDeleteTarget(null);
+    toast.success('Place removed', { description: removed.place.name });
+  }, [deleteTarget, selectedPlace]);
+
+  const openManualAdd = () => {
+    setAddInitial(null);
+    setAddOpen(true);
   };
 
   return (
-    <div
-      className={`relative isolate w-full overflow-hidden bg-muted ${
-        fullscreen ? 'h-dvh' : 'h-full'
-      }`}
-    >
+    <div className="relative isolate h-full w-full overflow-hidden bg-muted">
       <div ref={containerRef} className="h-full w-full" />
 
-      {showSearch && (
-        <PlacesSearch
-          onPlaceSelect={handlePlaceSelect}
-          latitude={mapCenter?.latitude}
-          longitude={mapCenter?.longitude}
-          className="inset-x-4 top-[4.5rem]"
-        />
-      )}
-
-      {fullscreen && (
-        <Button
-          onClick={() => navigate('/')}
-          aria-label="Back to home"
-          variant="outline"
-          size="icon-lg"
-          className="absolute left-4 top-4 z-[1100] size-11 rounded-full bg-background shadow-lg"
-        >
-          <Home />
-        </Button>
-      )}
+      <PlacesSearch
+        onPlaceSelect={handleSearchSelect}
+        onAddPlace={openManualAdd}
+        className="inset-x-4 top-[4.5rem]"
+      />
 
       <Button
-        onClick={handleLocateMe}
-        aria-label="Current location"
-        title="Current location"
+        onClick={() => navigate('/')}
+        aria-label="Back to home"
         variant="outline"
         size="icon-lg"
-        className="absolute right-4 top-4 z-[1100] size-11 rounded-full bg-background text-primary shadow-lg"
+        className="absolute left-4 top-4 z-[1100] size-11 rounded-full bg-background shadow-lg"
       >
-        <Navigation />
+        <Home />
       </Button>
 
-      {isLoading && !hasExternalMarkers && (
+      <div className="absolute right-4 top-4 z-[1100] flex flex-col gap-2">
+        <Button
+          onClick={handleLocateMe}
+          aria-label="Current location"
+          title="Current location"
+          variant="outline"
+          size="icon-lg"
+          className="size-11 rounded-full bg-background text-primary shadow-lg"
+        >
+          <Navigation />
+        </Button>
+        <Button
+          onClick={() => setPinDropMode((prev) => !prev)}
+          aria-label="Drop a pin"
+          title="Drop a pin to add a place"
+          aria-pressed={pinDropMode}
+          variant="outline"
+          size="icon-lg"
+          className={cn(
+            'size-11 rounded-full bg-background shadow-lg',
+            pinDropMode ? 'bg-primary text-primary-foreground' : 'text-primary'
+          )}
+        >
+          <Crosshair />
+        </Button>
+      </div>
+
+      {loading && (
         <Badge
           variant="secondary"
           className="absolute left-1/2 top-4 z-[1100] -translate-x-1/2 shadow"
@@ -434,12 +272,97 @@ export default function MapView({
         </Badge>
       )}
 
-      <PlaceDetails
-        key={selectedPlace?.fsq_id || selectedPlace?.name || 'none'}
+      {pinDropMode && (
+        <Badge
+          variant="secondary"
+          className="absolute bottom-24 left-1/2 z-[1100] -translate-x-1/2 shadow"
+        >
+          Tap the map to drop a pin
+        </Badge>
+      )}
+
+      {!loading && places.length === 0 && !selectedPlace && (
+        <div className="absolute bottom-24 left-1/2 z-[1100] w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2">
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-background/95 p-5 text-center shadow-lg backdrop-blur">
+            <span className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <MapPin className="size-6" />
+            </span>
+            <div>
+              <p className="font-heading text-sm font-semibold">No saved places yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Share a place from Google Maps to start your library.
+              </p>
+            </div>
+            <Button size="sm" onClick={openManualAdd} className="rounded-full">
+              <Plus />
+              Add from Google Maps
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <Button
+        onClick={openManualAdd}
+        aria-label="Add a place"
+        title="Add a place"
+        size="icon-lg"
+        className="absolute bottom-6 right-4 z-[1100] size-14 rounded-full shadow-lg"
+      >
+        <Plus className="size-6" />
+      </Button>
+
+      <AddPlaceSheet
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        initial={addInitial}
+        onSaved={handleAddSaved}
+      />
+
+      <SavedPlaceDetails
+        key={selectedPlace?.id ?? 'none'}
         place={selectedPlace}
         isOpen={Boolean(selectedPlace)}
         onClose={() => setSelectedPlace(null)}
+        onUpdate={handleUpdate}
+        onRequestDelete={setDeleteTarget}
+        onViewOnMap={handleViewOnMap}
+        userLocation={null}
       />
+
+      <AlertDialog
+        open={deleteTarget != null}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove from saved places?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove {deleteTarget?.place.name} from your saved places? This can&apos;t be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleting}
+              className="rounded-full"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="rounded-full"
+            >
+              {deleting ? <Loader2 className="animate-spin" /> : null}
+              {deleting ? 'Removing...' : 'Remove'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

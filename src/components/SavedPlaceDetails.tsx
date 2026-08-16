@@ -1,16 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import {
-  Clock,
-  ExternalLink,
-  Globe,
-  Loader2,
-  MapPin,
-  Navigation,
-  Phone,
-  Share2,
-  Star,
-  Trash2,
-} from 'lucide-react';
+import React, { useState } from 'react';
+import { ExternalLink, Loader2, MapPin, Navigation, Share2, Star, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
@@ -20,8 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { formatDistance, haversineKm } from '@/lib/distance';
-import { getPlaceDetails } from '@/lib/places';
+import { placeIconKey } from '@/lib/placeIcons';
 import { updateSavedPlace, type SavedPlaceWithDetails } from '@/lib/savedPlaces';
+import { PlaceIcon } from './PlaceIcon';
 
 interface SavedPlaceDetailsProps {
   place: SavedPlaceWithDetails | null;
@@ -34,10 +24,6 @@ interface SavedPlaceDetailsProps {
 }
 
 const NOTES_MAX_LENGTH = 500;
-
-function ensureUrl(url: string): string {
-  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
-}
 
 function formatUpdatedAt(iso: string): string {
   const date = new Date(iso);
@@ -64,29 +50,6 @@ export default function SavedPlaceDetails({
   const [notes, setNotes] = useState(place?.notes || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [extra, setExtra] = useState<{ phone?: string; website?: string; hours?: string }>({});
-
-  // Enrich with phone/website/hours from the Places API when available.
-  useEffect(() => {
-    const fsqId = place?.place.foursquare_fsq_id;
-    if (!fsqId) return;
-    let cancelled = false;
-    getPlaceDetails(fsqId)
-      .then((details) => {
-        if (cancelled) return;
-        setExtra({
-          phone: details.phone,
-          website: details.website,
-          hours: details.hours,
-        });
-      })
-      .catch(() => {
-        // Optional enrichment — ignore failures silently.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [place?.id, place?.place.foursquare_fsq_id]);
 
   const handleOpenChange = (next: boolean) => {
     if (!next) onClose();
@@ -148,7 +111,8 @@ export default function SavedPlaceDetails({
           place.place.longitude
         )
       : null;
-  const website = extra.website ? ensureUrl(extra.website) : null;
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${place.place.latitude},${place.place.longitude}`;
+  const iconKey = placeIconKey(place.place.icon, place.place.category);
 
   return (
     <Sheet open={isOpen} onOpenChange={handleOpenChange}>
@@ -160,18 +124,15 @@ export default function SavedPlaceDetails({
         <div className="flex max-h-[88dvh] flex-col overflow-hidden rounded-t-2xl bg-popover">
           {/* Scrollable content */}
           <div className="flex-1 overflow-y-auto px-4 pb-4 pt-3">
-            <div className="relative h-44 w-full shrink-0 overflow-hidden rounded-xl border bg-muted">
-              {place.place.photo_url ? (
-                <img
-                  src={place.place.photo_url}
-                  alt={place.place.name}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center bg-primary/5 text-primary">
-                  <MapPin className="size-10" />
-                </div>
+            <div className="relative flex h-40 w-full shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-gradient-to-br from-primary/15 via-primary/5 to-secondary/25 text-primary">
+              <PlaceIcon
+                icon={iconKey}
+                iconClassName="size-14"
+              />
+              {place.place.provider === 'google' && (
+                <Badge variant="secondary" className="absolute right-3 top-3 rounded-full">
+                  Google Maps
+                </Badge>
               )}
             </div>
 
@@ -192,43 +153,22 @@ export default function SavedPlaceDetails({
               )}
             </div>
 
-            {(distanceKm != null || extra.phone || website || extra.hours) && (
-              <div className="mt-4 flex flex-col gap-2 text-sm">
-                {distanceKm != null && (
-                  <p className="flex items-center gap-2 text-muted-foreground">
-                    <Navigation className="size-4 shrink-0 text-primary" />
-                    {formatDistance(distanceKm)}
-                  </p>
-                )}
-                {extra.phone && (
-                  <a
-                    href={`tel:${extra.phone}`}
-                    className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <Phone className="size-4 shrink-0 text-primary" />
-                    {extra.phone}
-                  </a>
-                )}
-                {website && (
-                  <a
-                    href={website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <Globe className="size-4 shrink-0 text-primary" />
-                    <span className="truncate">{website.replace(/^https?:\/\//i, '')}</span>
-                    <ExternalLink className="size-3.5 shrink-0" />
-                  </a>
-                )}
-                {extra.hours && (
-                  <p className="flex items-center gap-2 text-muted-foreground">
-                    <Clock className="size-4 shrink-0 text-primary" />
-                    {extra.hours}
-                  </p>
-                )}
-              </div>
+            {distanceKm != null && (
+              <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+                <Navigation className="size-4 shrink-0 text-primary" />
+                {formatDistance(distanceKm)}
+              </p>
             )}
+
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Open in Google Maps
+              <ExternalLink className="size-3.5" />
+            </a>
 
             <p className="mt-3 text-xs text-muted-foreground">
               Last updated {formatUpdatedAt(place.updated_at)}

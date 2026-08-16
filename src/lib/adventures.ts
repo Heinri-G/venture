@@ -1,4 +1,5 @@
 import { supabase } from './supabase/client';
+import type { PlaceProvider } from './savedPlaces';
 
 export type AdventureVisibility = 'private' | 'shared' | 'public';
 
@@ -33,13 +34,14 @@ export interface AdventurePlaceWithDetails extends AdventurePlace {
     updated_at: string;
     place: {
       id: string;
-      foursquare_fsq_id: string | null;
+      provider: PlaceProvider | null;
+      provider_place_id: string | null;
+      icon: string | null;
       name: string;
       address: string | null;
       latitude: number;
       longitude: number;
       category: string | null;
-      photo_url: string | null;
       created_at: string;
     };
   };
@@ -136,8 +138,8 @@ export async function fetchAdventureWithPlaces(
         saved_place:saved_places(
           id, user_id, place_id, rating, notes, created_at, updated_at,
           place:places(
-            id, foursquare_fsq_id, name, address, latitude, longitude,
-            category, photo_url, created_at
+            id, provider, provider_place_id, icon, name, address, latitude, longitude,
+            category, created_at
           )
         )
       ),

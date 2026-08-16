@@ -1,16 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Loader2, MapPin, Search, X } from 'lucide-react';
+import { Link2, Loader2, MapPin, Search, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getPlaceDetails, searchPlaces, type PlaceResult, type PlaceSuggestion } from '@/lib/places';
+import { searchSavedPlaces, type SavedPlaceWithDetails } from '@/lib/savedPlaces';
+import { useAuthUser } from '@/lib/useAuthUser';
+import { placeIconKey } from '@/lib/placeIcons';
+import { PlaceIcon } from './PlaceIcon';
 import { cn } from '@/lib/utils';
 
 interface PlacesSearchProps {
-  onPlaceSelect: (place: PlaceResult) => void;
-  latitude?: number;
-  longitude?: number;
+  onPlaceSelect: (place: SavedPlaceWithDetails) => void;
+  onAddPlace?: () => void;
   className?: string;
 }
 
@@ -20,12 +23,12 @@ const RESULT_LIMIT = 10;
 
 export default function PlacesSearch({
   onPlaceSelect,
-  latitude,
-  longitude,
+  onAddPlace,
   className,
 }: PlacesSearchProps) {
+  const { user, loading: authLoading } = useAuthUser();
   const [query, setQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<SavedPlaceWithDetails[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -38,7 +41,7 @@ export default function PlacesSearch({
 
   useEffect(() => {
     const trimmed = query.trim();
-    if (trimmed.length < MIN_QUERY_LENGTH) return;
+    if (!user || trimmed.length < MIN_QUERY_LENGTH) return;
 
     let cancelled = false;
 
@@ -46,31 +49,30 @@ export default function PlacesSearch({
       setLoading(true);
       setError(null);
       setSearched(false);
-      try {
-        const results = await searchPlaces(trimmed, {
-          latitude,
-          longitude,
-          limit: RESULT_LIMIT,
-        });
-        if (cancelled) return;
-        setSuggestions(results);
-        setActiveIndex(-1);
-        setSearched(true);
-        setOpen(true);
-      } catch (err) {
-        if (cancelled) return;
+      const { data, error: searchError } = await searchSavedPlaces(
+        user.id,
+        trimmed,
+        RESULT_LIMIT
+      );
+      if (cancelled) return;
+      setLoading(false);
+      if (searchError) {
         setSuggestions([]);
-        setError(err instanceof Error ? err.message : 'Search error');
-      } finally {
-        if (!cancelled) setLoading(false);
+        setError(searchError);
+        setSearched(true);
+        return;
       }
+      setSuggestions(data);
+      setActiveIndex(-1);
+      setSearched(true);
+      setOpen(true);
     }, DEBOUNCE_MS);
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [query, latitude, longitude]);
+  }, [query, user]);
 
   const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -105,31 +107,11 @@ export default function PlacesSearch({
     };
   }, []);
 
-  const handleSelect = async (suggestion: PlaceSuggestion) => {
-    setSelectingId(suggestion.fsq_id);
+  const handleSelect = (place: SavedPlaceWithDetails) => {
+    setSelectingId(place.id);
     setOpen(false);
-    try {
-      const details = await getPlaceDetails(suggestion.fsq_id);
-      onPlaceSelect({
-        fsq_id: details.fsq_id || suggestion.fsq_id,
-        name: details.name || suggestion.name,
-        address: details.address || suggestion.address,
-        latitude: details.latitude || suggestion.latitude,
-        longitude: details.longitude || suggestion.longitude,
-        category: details.category || suggestion.category,
-        phone: details.phone,
-        website: details.website,
-        hours: details.hours,
-        photoUrl: details.photoUrl,
-        rating: details.rating,
-        description: details.description,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load place details');
-      setOpen(true);
-    } finally {
-      setSelectingId(null);
-    }
+    onPlaceSelect(place);
+    setSelectingId(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -160,12 +142,10 @@ export default function PlacesSearch({
   };
 
   const showDropdown = Boolean(open && (loading || error || searched));
+  const noResults = searched && !loading && suggestions.length === 0;
 
   return (
-    <div
-      ref={rootRef}
-      className={cn('absolute inset-x-4 top-4 z-[1100]', className)}
-    >
+    <div ref={rootRef} className={cn('absolute inset-x-4 top-4 z-[1100]', className)}>
       <div className="flex items-center gap-2 rounded-full border border-border bg-background/95 p-1.5 pl-5 shadow-[0_3px_12px_rgba(0,0,0,0.15)] backdrop-blur">
         <Search className="pointer-events-none size-4 shrink-0 text-muted-foreground" />
         <input
@@ -178,13 +158,13 @@ export default function PlacesSearch({
             setActiveIndex(-1);
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Search places, venues, landmarks..."
+          placeholder="Search your saved places..."
           role="combobox"
           aria-expanded={showDropdown}
           aria-controls="places-search-listbox"
           aria-activedescendant={activeIndex >= 0 ? `places-search-option-${activeIndex}` : undefined}
           aria-autocomplete="list"
-          aria-label="Search places"
+          aria-label="Search saved places"
           autoComplete="off"
           className="h-9 min-w-0 flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />
@@ -237,40 +217,75 @@ export default function PlacesSearch({
                 <p role="alert" className="p-3 text-sm text-destructive">
                   {error}
                 </p>
-              ) : suggestions.length === 0 ? (
-                <p className="p-3 text-sm text-muted-foreground">No results found</p>
+              ) : noResults ? (
+                <div className="flex flex-col gap-3 p-4 text-center">
+                  <span className="mx-auto flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <MapPin className="size-5" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">No saved places match</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Add it first by sharing from Google Maps.
+                    </p>
+                  </div>
+                  {onAddPlace && (
+                    <Button
+                      size="sm"
+                      onClick={onAddPlace}
+                      className="mx-auto rounded-full"
+                    >
+                      <Link2 />
+                      Add from Google Maps
+                    </Button>
+                  )}
+                </div>
               ) : (
-                suggestions.map((res, index) => (
-                  <button
-                    key={res.fsq_id}
-                    id={`places-search-option-${index}`}
-                    role="option"
-                    aria-selected={index === activeIndex}
-                    onClick={() => handleSelect(res)}
-                    onMouseEnter={() => setActiveIndex(index)}
-                    className={cn(
-                      'flex w-full items-start gap-3 rounded-xl p-2.5 text-left transition-colors',
-                      index === activeIndex ? 'bg-muted' : 'hover:bg-muted'
-                    )}
-                  >
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <MapPin className="size-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-foreground">{res.name}</span>
-                      <span className="block truncate text-xs text-muted-foreground">{res.address}</span>
-                      {res.category && (
-                        <Badge variant="outline" className="mt-1.5 h-4 text-[10px]">
-                          {res.category}
-                        </Badge>
+                suggestions.map((res, index) => {
+                  const iconKey = placeIconKey(res.place.icon, res.place.category);
+                  return (
+                    <button
+                      key={res.id}
+                      id={`places-search-option-${index}`}
+                      role="option"
+                      aria-selected={index === activeIndex}
+                      onClick={() => handleSelect(res)}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      className={cn(
+                        'flex w-full items-start gap-3 rounded-xl p-2.5 text-left transition-colors',
+                        index === activeIndex ? 'bg-muted' : 'hover:bg-muted'
                       )}
-                    </span>
-                  </button>
-                ))
+                    >
+                      <PlaceIcon
+                        icon={iconKey}
+                        className="size-9 rounded-full"
+                        iconClassName="size-4"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-foreground">
+                          {res.place.name}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {res.place.address}
+                        </span>
+                        {res.place.category && (
+                          <Badge variant="outline" className="mt-1.5 h-4 text-[10px]">
+                            {res.place.category}
+                          </Badge>
+                        )}
+                      </span>
+                    </button>
+                  );
+                })
               )}
             </div>
           </Card>
         </motion.div>
+      )}
+
+      {!authLoading && !user && !showDropdown && (
+        <div className="mt-2 rounded-full bg-background/90 px-4 py-2 text-center text-xs text-muted-foreground shadow backdrop-blur">
+          Sign in to see your saved places.
+        </div>
       )}
     </div>
   );

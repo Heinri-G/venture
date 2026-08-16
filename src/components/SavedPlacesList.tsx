@@ -1,10 +1,12 @@
 import React, { memo } from 'react';
-import { Loader2, MapPin, Navigation, Star, Trash2 } from 'lucide-react';
+import { Loader2, Navigation, Star, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { formatDistance, haversineKm } from '@/lib/distance';
+import { placeIconKey } from '@/lib/placeIcons';
 import type { SavedPlaceWithDetails } from '@/lib/savedPlaces';
+import { PlaceIcon } from './PlaceIcon';
 
 interface SavedPlacesListProps {
   places: SavedPlaceWithDetails[];
@@ -88,18 +90,11 @@ function SavedPlacesList({
                       : 'border-border hover:border-primary/40'
                   )}
                 >
-                  {sp.place.photo_url ? (
-                    <img
-                      src={sp.place.photo_url}
-                      alt={sp.place.name}
-                      loading="lazy"
-                      className="size-16 shrink-0 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <span className="flex size-16 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      <MapPin className="size-6" />
-                    </span>
-                  )}
+                  <PlaceIcon
+                    icon={placeIconKey(sp.place.icon, sp.place.category)}
+                    className="size-16 shrink-0 rounded-lg"
+                    iconClassName="size-7"
+                  />
 
                   <span className="min-w-0 flex-1">
                     <span className="flex items-baseline justify-between gap-2">

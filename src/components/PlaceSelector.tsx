@@ -24,7 +24,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { placeIconKey } from '@/lib/placeIcons';
 import { fetchSavedPlaces, type SavedPlaceWithDetails } from '@/lib/savedPlaces';
+import { PlaceIcon } from './PlaceIcon';
 
 interface PlaceSelectorProps {
   userId: string;
@@ -70,18 +72,11 @@ function SortablePlaceRow({
         {index + 1}
       </span>
 
-      {place.place.photo_url ? (
-        <img
-          src={place.place.photo_url}
-          alt={place.place.name}
-          loading="lazy"
-          className="size-11 shrink-0 rounded-lg object-cover"
-        />
-      ) : (
-        <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <MapPin className="size-5" />
-        </span>
-      )}
+      <PlaceIcon
+        icon={placeIconKey(place.place.icon, place.place.category)}
+        className="size-11 shrink-0 rounded-lg"
+        iconClassName="size-5"
+      />
 
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-foreground">
@@ -299,10 +294,10 @@ function PlaceSelector({
             </span>
             <p className="font-heading text-sm font-semibold">No saved places yet</p>
             <p className="text-sm text-muted-foreground">
-              Search the map and bookmark places to build your adventure.
+              Share a place from Google Maps to build your library.
             </p>
             <Button asChild variant="outline" size="sm" className="rounded-full">
-              <Link to="/map">Explore the map</Link>
+              <Link to="/map">Open the map</Link>
             </Button>
           </div>
         ) : filtered.length === 0 ? (
@@ -337,18 +332,11 @@ function PlaceSelector({
                     >
                       {isSelected && <Check className="size-3" />}
                     </span>
-                    {place.place.photo_url ? (
-                      <img
-                        src={place.place.photo_url}
-                        alt={place.place.name}
-                        loading="lazy"
-                        className="size-12 shrink-0 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <MapPin className="size-5" />
-                      </span>
-                    )}
+                    <PlaceIcon
+                      icon={placeIconKey(place.place.icon, place.place.category)}
+                      className="size-12 shrink-0 rounded-lg"
+                      iconClassName="size-6"
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold text-foreground">
                         {place.place.name}

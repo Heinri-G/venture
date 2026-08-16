@@ -22,6 +22,7 @@ const AdventureDetail = lazy(() => import('./AdventureDetail'));
 const AdventureCreate = lazy(() => import('./AdventureCreate'));
 const AdventurePublicView = lazy(() => import('./AdventurePublicView'));
 const MapView = lazy(() => import('./components/MapView'));
+const ShareImport = lazy(() => import('./components/ShareImport'));
 
 /** Inverted mirror of ProtectedRoute: logged-in users skip the marketing page. */
 function RedirectIfAuthenticated({ children }: { children: React.ReactNode }) {
@@ -62,7 +63,8 @@ export default function App() {
                   </RedirectIfAuthenticated>
                 }
               />
-              <Route path="/map" element={<div className="h-[calc(100dvh-4rem)] w-full"><MapView fullscreen showSearch /></div>} />
+              <Route path="/map" element={<ProtectedRoute><div className="h-[calc(100dvh-4rem)] w-full"><MapView /></div></ProtectedRoute>} />
+              <Route path="/share" element={<ProtectedRoute><PageTransition><ShareImport /></PageTransition></ProtectedRoute>} />
               <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
               <Route path="/signup" element={<PageTransition><Signup /></PageTransition>} />
               <Route path="/profile" element={<ProtectedRoute><PageTransition><Profile /></PageTransition></ProtectedRoute>} />

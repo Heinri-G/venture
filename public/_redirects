@@ -1,0 +1,2 @@
+# Netlify redirects: SPA fallback + deep links (e.g. /share) serve the app.
+/*    /index.html 200

@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import AdventureMap, { type AdventureMapPlace } from './components/AdventureMap';
+import { PlaceIcon } from './components/PlaceIcon';
 import PlaceSelector from './components/PlaceSelector';
 import ShareAdventureModal from './components/ShareAdventureModal';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './components/ui/alert-dialog';
@@ -58,6 +59,7 @@ import {
   type AdventureWithPlaces,
 } from './lib/adventures';
 import { haversineKm } from './lib/distance';
+import { placeIconKey } from './lib/placeIcons';
 import { supabase } from './lib/supabase/client';
 import type { SavedPlaceWithDetails } from './lib/savedPlaces';
 import { cn } from './lib/utils';
@@ -678,18 +680,11 @@ export default function AdventureDetail() {
                             )}
                           </span>
 
-                          {place.photo_url ? (
-                            <img
-                              src={place.photo_url}
-                              alt=""
-                              loading="lazy"
-                              className="mt-0.5 size-12 shrink-0 rounded-lg object-cover"
-                            />
-                          ) : (
-                            <span className="mt-0.5 flex size-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                              <MapPin className="size-5" />
-                            </span>
-                          )}
+                          <PlaceIcon
+                            icon={placeIconKey(place.icon, place.category)}
+                            className="mt-0.5 size-12 shrink-0 rounded-lg"
+                            iconClassName="size-5"
+                          />
                         </button>
                       </li>
                     );
