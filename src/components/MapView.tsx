@@ -22,7 +22,6 @@ import { useMapLibre } from '../hooks/useMapLibre';
 import { useUserLocation } from '../hooks/useUserLocation';
 import { useAuthUser } from '../lib/useAuthUser';
 import { getPlaceIcon, placeIconKey } from '../lib/placeIcons';
-import { haversineKm } from '../lib/distance';
 import {
   deleteSavedPlace,
   fetchSavedPlaces,
@@ -149,47 +148,23 @@ export default function MapView() {
 
   const startupFittedRef = useRef(false);
 
-  // After both places and user-location settle, fit the viewport:
-  //   known location  + places  → show user + nearest saved place
-  //   known location  + empty   → fly to user
-  //   unknown location + places  → show densest cluster
-  //   unknown location + empty   → keep transient Berlin default
+  // After both places and user-location settle, pick the viewport:
+  //   known location   → center on user at city depth
+  //   unknown location → show densest cluster of places (or keep default)
   useEffect(() => {
     if (!map || startupFittedRef.current || locationLoading || loading) return;
     startupFittedRef.current = true;
 
-    if (userLocation && places.length > 0) {
-      let nearest = places[0];
-      let bestDist = Infinity;
-      for (const sp of places) {
-        const d = haversineKm(
-          userLocation.latitude,
-          userLocation.longitude,
-          sp.place.latitude,
-          sp.place.longitude
-        );
-        if (d < bestDist) {
-          bestDist = d;
-          nearest = sp;
-        }
-      }
-      const bounds = new LngLatBounds();
-      bounds.extend([userLocation.longitude, userLocation.latitude]);
-      bounds.extend([nearest.place.longitude, nearest.place.latitude]);
-      map.fitBounds(bounds, { padding: 64, maxZoom: 15 });
-      return;
-    }
-
-    if (userLocation && places.length === 0) {
+    if (userLocation) {
       map.flyTo({
         center: [userLocation.longitude, userLocation.latitude],
-        zoom: 14,
+        zoom: 12,
         duration: 1200,
       });
       return;
     }
 
-    if (!userLocation && places.length > 0) {
+    if (places.length > 0) {
       const centre = densestCentre(places);
       if (centre) {
         const bounds = new LngLatBounds();
