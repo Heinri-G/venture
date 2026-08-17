@@ -5,15 +5,38 @@ export interface UserLocation {
   longitude: number;
 }
 
+const STORAGE_KEY = 'venture:user-location';
+
+function readCached(): UserLocation | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { latitude: number; longitude: number };
+    if (typeof parsed.latitude === 'number' && typeof parsed.longitude === 'number') return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(loc: UserLocation) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(loc));
+  } catch {
+    // storage full or blocked — ignore
+  }
+}
+
 /**
- * Requests the browser geolocation once on mount and returns the result.
- * Returns `loading: true` while the browser prompt is active, and
- * `error: true` if the user denies or the device cannot resolve a position.
+ * Returns the user's geolocation, loading from localStorage first so the
+ * map can centre immediately.  A fresh browser position is requested in the
+ * background and replaces the cached value once it arrives.
  */
 export function useUserLocation(opts?: { enableHighAccuracy?: boolean; timeout?: number }) {
-  const [location, setLocation] = useState<UserLocation | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [location, setLocation] = useState<UserLocation | null>(() => readCached());
+  const [loading, setLoading] = useState(() => !readCached());
   const [error, setError] = useState(false);
+  const hasCachedRef = useRef(readCached() !== null);
   const requestedRef = useRef(false);
   const optsRef = useRef(opts);
   useEffect(() => {
@@ -23,25 +46,32 @@ export function useUserLocation(opts?: { enableHighAccuracy?: boolean; timeout?:
   useEffect(() => {
     if (requestedRef.current) return;
     if (!navigator.geolocation) {
-      // Defer so we don't call setState synchronously inside the effect.
-      queueMicrotask(() => {
-        setError(true);
+      if (!hasCachedRef.current) {
+        queueMicrotask(() => {
+          setError(true);
+          setLoading(false);
+        });
+      } else {
         setLoading(false);
-      });
+      }
       return;
     }
     requestedRef.current = true;
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setLocation({
+        const loc = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
-        });
+        };
+        setLocation(loc);
         setLoading(false);
+        writeCache(loc);
       },
       () => {
-        setError(true);
+        if (!hasCachedRef.current) {
+          setError(true);
+        }
         setLoading(false);
       },
       {

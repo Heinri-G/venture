@@ -12,7 +12,17 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 // point maplibre at the resulting URL.
 setWorkerUrl(maplibreWorkerUrl);
 
-const DEFAULT_CENTER: [number, number] = [13.405, 52.52]; // Berlin
+const DEFAULT_CENTER: [number, number] = [13.405, 52.52]; // Berlin fallback
+
+function cachedUserCenter(): [number, number] | null {
+  try {
+    const raw = localStorage.getItem('venture:user-location');
+    if (!raw) return null;
+    const { latitude: lat, longitude: lng } = JSON.parse(raw);
+    if (typeof lat === 'number' && typeof lng === 'number') return [lng, lat];
+  } catch { /* ignore */ }
+  return null;
+}
 
 interface UseMapLibreOptions {
   center?: [number, number];
@@ -45,7 +55,7 @@ export function useMapLibre(options?: UseMapLibreOptions) {
     const instance = new Map({
       container,
       style: createProtomapsStyle(themeRef.current),
-      center: optionsRef.current?.center ?? DEFAULT_CENTER,
+      center: optionsRef.current?.center ?? cachedUserCenter() ?? DEFAULT_CENTER,
       zoom: optionsRef.current?.zoom ?? 12,
       attributionControl: { compact: true },
     });
