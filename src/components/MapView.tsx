@@ -17,8 +17,11 @@ import {
 } from './ui/alert-dialog';
 import PlacesSearch from './PlacesSearch';
 import SavedPlaceDetails from './SavedPlaceDetails';
+import SavedPlaceDetailsSidePanel from './SavedPlaceDetailsSidePanel';
 import AddPlaceSheet, { type AddPlaceInitial } from './AddPlaceSheet';
+import AddPlaceSheetSidePanel from './AddPlaceSheetSidePanel';
 import { useMapLibre } from '../hooks/useMapLibre';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { useUserLocation } from '../hooks/useUserLocation';
 import { useAuthUser } from '../lib/useAuthUser';
 import { getPlaceIcon, placeIconKey } from '../lib/placeIcons';
@@ -113,6 +116,7 @@ export default function MapView() {
   const { user } = useAuthUser();
   const { containerRef, map } = useMapLibre();
   const { location: userLocation, loading: locationLoading } = useUserLocation();
+  const isMobile = useIsMobile();
 
   const [places, setPlaces] = useState<SavedPlaceWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -311,117 +315,144 @@ export default function MapView() {
   };
 
   return (
-    <div className="relative isolate h-full w-full overflow-hidden bg-muted">
-      <div ref={containerRef} className="h-full w-full" />
-
-      <PlacesSearch
-        onPlaceSelect={handleSearchSelect}
-        onAddPlace={openManualAdd}
-        className="inset-x-4 top-[4.5rem]"
-      />
-
-      <Button
-        onClick={() => navigate('/')}
-        aria-label="Back to home"
-        variant="outline"
-        size="icon-lg"
-        className="absolute left-4 top-4 z-[1100] size-11 rounded-full bg-background shadow-lg"
-      >
-        <Home />
-      </Button>
-
-      <div className="absolute right-4 top-4 z-[1100] flex flex-col gap-2">
-        <Button
-          onClick={handleLocateMe}
-          aria-label="Current location"
-          title="Current location"
-          variant="outline"
-          size="icon-lg"
-          className="size-11 rounded-full bg-background text-primary shadow-lg"
-        >
-          <Navigation />
-        </Button>
-        <Button
-          onClick={() => setPinDropMode((prev) => !prev)}
-          aria-label="Drop a pin"
-          title="Drop a pin to add a place"
-          aria-pressed={pinDropMode}
-          variant="outline"
-          size="icon-lg"
-          className={cn(
-            'size-11 rounded-full bg-background shadow-lg',
-            pinDropMode ? 'bg-primary text-primary-foreground' : 'text-primary'
-          )}
-        >
-          <Crosshair />
-        </Button>
-      </div>
-
-      {loading && (
-        <Badge
-          variant="secondary"
-          className="absolute left-1/2 top-4 z-[1100] -translate-x-1/2 shadow"
-        >
-          Loading places...
-        </Badge>
+    <div className="flex h-full w-full overflow-hidden bg-muted">
+      {!isMobile && selectedPlace && (
+        <SavedPlaceDetailsSidePanel
+          key={selectedPlace.id}
+          place={selectedPlace}
+          onClose={() => setSelectedPlace(null)}
+          onUpdate={handleUpdate}
+          onRequestDelete={setDeleteTarget}
+          onViewOnMap={handleViewOnMap}
+          userLocation={userLocation}
+        />
       )}
 
-      {pinDropMode && (
-        <Badge
-          variant="secondary"
-          className="absolute bottom-24 left-1/2 z-[1100] -translate-x-1/2 shadow"
-        >
-          Tap the map to drop a pin
-        </Badge>
+      {!isMobile && addOpen && (
+        <AddPlaceSheetSidePanel
+          open={addOpen}
+          onClose={() => setAddOpen(false)}
+          initial={addInitial}
+          onSaved={handleAddSaved}
+        />
       )}
 
-      {!loading && places.length === 0 && !selectedPlace && (
-        <div className="absolute bottom-24 left-1/2 z-[1100] w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2">
-          <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-background/95 p-5 text-center shadow-lg backdrop-blur">
-            <span className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <MapPin className="size-6" />
-            </span>
-            <div>
-              <p className="font-heading text-sm font-semibold">No saved places yet</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Share a place from Google Maps to start your library.
-              </p>
-            </div>
-            <Button size="sm" onClick={openManualAdd} className="rounded-full">
-              <Plus />
-              Add from Google Maps
-            </Button>
-          </div>
+      <div className="relative isolate min-w-0 flex-1">
+        <div ref={containerRef} className="h-full w-full" />
+
+        <PlacesSearch
+          onPlaceSelect={handleSearchSelect}
+          onAddPlace={openManualAdd}
+          className="inset-x-4 top-[4.5rem]"
+        />
+
+        <Button
+          onClick={() => navigate('/')}
+          aria-label="Back to home"
+          variant="outline"
+          size="icon-lg"
+          className="absolute left-4 top-4 z-[1100] size-11 rounded-full bg-background shadow-lg"
+        >
+          <Home />
+        </Button>
+
+        <div className="absolute right-4 top-4 z-[1100] flex flex-col gap-2">
+          <Button
+            onClick={handleLocateMe}
+            aria-label="Current location"
+            title="Current location"
+            variant="outline"
+            size="icon-lg"
+            className="size-11 rounded-full bg-background text-primary shadow-lg"
+          >
+            <Navigation />
+          </Button>
+          <Button
+            onClick={() => setPinDropMode((prev) => !prev)}
+            aria-label="Drop a pin"
+            title="Drop a pin to add a place"
+            aria-pressed={pinDropMode}
+            variant="outline"
+            size="icon-lg"
+            className={cn(
+              'size-11 rounded-full bg-background shadow-lg',
+              pinDropMode ? 'bg-primary text-primary-foreground' : 'text-primary'
+            )}
+          >
+            <Crosshair />
+          </Button>
         </div>
-      )}
 
-      <Button
-        onClick={openManualAdd}
-        aria-label="Add a place"
-        title="Add a place"
-        size="icon-lg"
-        className="absolute bottom-6 right-4 z-[1100] size-14 rounded-full shadow-lg"
-      >
-        <Plus className="size-6" />
-      </Button>
+        {loading && (
+          <Badge
+            variant="secondary"
+            className="absolute left-1/2 top-4 z-[1100] -translate-x-1/2 shadow"
+          >
+            Loading places...
+          </Badge>
+        )}
 
-      <AddPlaceSheet
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        initial={addInitial}
-        onSaved={handleAddSaved}
-      />
+        {pinDropMode && (
+          <Badge
+            variant="secondary"
+            className="absolute bottom-24 left-1/2 z-[1100] -translate-x-1/2 shadow"
+          >
+            Tap the map to drop a pin
+          </Badge>
+        )}
 
-      <SavedPlaceDetails
-        key={selectedPlace?.id ?? 'none'}
-        place={selectedPlace}
-        isOpen={Boolean(selectedPlace)}
-        onClose={() => setSelectedPlace(null)}
-        onUpdate={handleUpdate}
-        onRequestDelete={setDeleteTarget}
-        onViewOnMap={handleViewOnMap}
-        userLocation={userLocation}
-      />
+        {!loading && places.length === 0 && !selectedPlace && (
+          <div className="absolute bottom-24 left-1/2 z-[1100] w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2">
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-background/95 p-5 text-center shadow-lg backdrop-blur">
+              <span className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <MapPin className="size-6" />
+              </span>
+              <div>
+                <p className="font-heading text-sm font-semibold">No saved places yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Share a place from Google Maps to start your library.
+                </p>
+              </div>
+              <Button size="sm" onClick={openManualAdd} className="rounded-full">
+                <Plus />
+                Add from Google Maps
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <Button
+          onClick={openManualAdd}
+          aria-label="Add a place"
+          title="Add a place"
+          size="icon-lg"
+          className="absolute bottom-6 right-4 z-[1100] size-14 rounded-full shadow-lg"
+        >
+          <Plus className="size-6" />
+        </Button>
+
+        {isMobile && (
+          <>
+            <AddPlaceSheet
+              open={addOpen}
+              onOpenChange={setAddOpen}
+              initial={addInitial}
+              onSaved={handleAddSaved}
+            />
+
+            <SavedPlaceDetails
+              key={selectedPlace?.id ?? 'none'}
+              place={selectedPlace}
+              isOpen={Boolean(selectedPlace)}
+              onClose={() => setSelectedPlace(null)}
+              onUpdate={handleUpdate}
+              onRequestDelete={setDeleteTarget}
+              onViewOnMap={handleViewOnMap}
+              userLocation={userLocation}
+            />
+          </>
+        )}
+      </div>
 
       <AlertDialog
         open={deleteTarget != null}

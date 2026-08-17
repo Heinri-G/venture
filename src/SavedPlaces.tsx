@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import SavedPlacesList from './components/SavedPlacesList';
 import SavedPlacesMap from './components/SavedPlacesMap';
 import SavedPlaceDetails from './components/SavedPlaceDetails';
+import SavedPlaceDetailsSidePanel from './components/SavedPlaceDetailsSidePanel';
+import { useIsMobile } from './hooks/useIsMobile';
 import { useAuthUser } from './lib/useAuthUser';
 import {
   deleteSavedPlace,
@@ -65,6 +67,7 @@ function sortAlphabetical(list: SavedPlaceWithDetails[]): SavedPlaceWithDetails[
 
 export default function SavedPlaces() {
   const { user } = useAuthUser();
+  const isMobile = useIsMobile();
 
   const [places, setPlaces] = useState<SavedPlaceWithDetails[]>([]);
   const [mapPlaces, setMapPlaces] = useState<SavedPlaceWithDetails[]>([]);
@@ -410,91 +413,107 @@ export default function SavedPlaces() {
       </div>
 
       {/* Content */}
-      <div className="relative min-h-0 flex-1">
-        {error ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
-            <p role="alert" className="text-sm font-medium text-destructive">
-              Couldn&apos;t load your saved places.
-            </p>
-            <Button variant="outline" onClick={retry} className="rounded-full">
-              <RotateCcw />
-              Retry
-            </Button>
-          </div>
-        ) : initialLoading ? (
-          <div className="flex h-full flex-col gap-3">
-            {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-24 w-full rounded-xl" />
-            ))}
-          </div>
-        ) : places.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
-            <span className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <Bookmark className="size-6" />
-            </span>
-            {filterCategory ? (
-              <>
-                <p className="font-heading text-lg font-semibold">
-                  No saved places in this category
-                </p>
-                <p className="max-w-xs text-sm text-muted-foreground">
-                  Try a different category or clear your filters.
-                </p>
-                <Button variant="outline" onClick={resetFilters} className="rounded-full">
-                  <RotateCcw />
-                  Clear filters
-                </Button>
-              </>
-            ) : (
-              <>
-                <p className="font-heading text-lg font-semibold">
-                  No saved places yet. Start exploring!
-                </p>
-                <p className="max-w-xs text-sm text-muted-foreground">
-                  Search the map and bookmark the places you love.
-                </p>
-                <Button asChild size="lg" className="rounded-full">
-                  <Link to="/map">
-                    <MapIcon />
-                    Explore the map
-                  </Link>
-                </Button>
-              </>
-            )}
-          </div>
-        ) : selectedView === 'list' ? (
-          <SavedPlacesList
-            places={places}
-            selectedPlaceId={selectedPlace?.id ?? null}
-            userLocation={userLocation}
-            onSelectPlace={handleSelectPlace}
+      <div className="relative min-h-0 flex-1 flex">
+        {!isMobile && selectedPlace && (
+          <SavedPlaceDetailsSidePanel
+            key={selectedPlace.id}
+            place={selectedPlace}
+            onClose={() => setSelectedPlace(null)}
+            onUpdate={handleUpdate}
             onRequestDelete={handleRequestDelete}
-            hasMore={hasMore}
-            loadingMore={loadingMore}
-            onLoadMore={loadMore}
-          />
-        ) : (
-          <SavedPlacesMap
-            places={mapPlaces}
-            selectedPlaceId={selectedPlace?.id ?? null}
-            flyToTarget={flyToTarget}
-            onSelectPlace={handleSelectPlace}
-            onBackToList={() => handleViewChange('list')}
-            loading={mapLoading}
+            onViewOnMap={handleViewOnMap}
+            userLocation={userLocation}
           />
         )}
+
+        <div className="min-w-0 flex-1">
+          {error ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
+              <p role="alert" className="text-sm font-medium text-destructive">
+                Couldn&apos;t load your saved places.
+              </p>
+              <Button variant="outline" onClick={retry} className="rounded-full">
+                <RotateCcw />
+                Retry
+              </Button>
+            </div>
+          ) : initialLoading ? (
+            <div className="flex h-full flex-col gap-3">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-24 w-full rounded-xl" />
+              ))}
+            </div>
+          ) : places.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
+              <span className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Bookmark className="size-6" />
+              </span>
+              {filterCategory ? (
+                <>
+                  <p className="font-heading text-lg font-semibold">
+                    No saved places in this category
+                  </p>
+                  <p className="max-w-xs text-sm text-muted-foreground">
+                    Try a different category or clear your filters.
+                  </p>
+                  <Button variant="outline" onClick={resetFilters} className="rounded-full">
+                    <RotateCcw />
+                    Clear filters
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="font-heading text-lg font-semibold">
+                    No saved places yet. Start exploring!
+                  </p>
+                  <p className="max-w-xs text-sm text-muted-foreground">
+                    Search the map and bookmark the places you love.
+                  </p>
+                  <Button asChild size="lg" className="rounded-full">
+                    <Link to="/map">
+                      <MapIcon />
+                      Explore the map
+                    </Link>
+                  </Button>
+                </>
+              )}
+            </div>
+          ) : selectedView === 'list' ? (
+            <SavedPlacesList
+              places={places}
+              selectedPlaceId={selectedPlace?.id ?? null}
+              userLocation={userLocation}
+              onSelectPlace={handleSelectPlace}
+              onRequestDelete={handleRequestDelete}
+              hasMore={hasMore}
+              loadingMore={loadingMore}
+              onLoadMore={loadMore}
+            />
+          ) : (
+            <SavedPlacesMap
+              places={mapPlaces}
+              selectedPlaceId={selectedPlace?.id ?? null}
+              flyToTarget={flyToTarget}
+              onSelectPlace={handleSelectPlace}
+              onBackToList={() => handleViewChange('list')}
+              loading={mapLoading}
+            />
+          )}
+        </div>
       </div>
 
-      <SavedPlaceDetails
-        key={selectedPlace?.id ?? 'none'}
-        place={selectedPlace}
-        isOpen={Boolean(selectedPlace)}
-        onClose={() => setSelectedPlace(null)}
-        onUpdate={handleUpdate}
-        onRequestDelete={handleRequestDelete}
-        onViewOnMap={handleViewOnMap}
-        userLocation={userLocation}
-      />
+      {isMobile && (
+        <SavedPlaceDetails
+          key={selectedPlace?.id ?? 'none'}
+          place={selectedPlace}
+          isOpen={Boolean(selectedPlace)}
+          onClose={() => setSelectedPlace(null)}
+          onUpdate={handleUpdate}
+          onRequestDelete={handleRequestDelete}
+          onViewOnMap={handleViewOnMap}
+          userLocation={userLocation}
+        />
+      )}
 
       <AlertDialog
         open={deleteTarget != null}
