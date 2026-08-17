@@ -12,6 +12,7 @@ export interface Place {
   longitude: number;
   category: string | null;
   icon: string | null;
+  maps_url: string | null;
   created_at: string;
 }
 
@@ -34,6 +35,7 @@ export interface PlaceInput {
   longitude: number;
   category?: string;
   icon?: string;
+  mapsUrl?: string;
 }
 
 export interface SavedPlacesResult {
@@ -46,14 +48,14 @@ export interface SavedPlacesResult {
 
 const PLACE_COLUMNS = `
   id, provider, provider_place_id, name, address, latitude, longitude,
-  category, icon, created_at
+  category, icon, maps_url, created_at
 `;
 
 const SAVED_PLACE_WITH_PLACE_SELECT = `
   id, user_id, place_id, rating, notes, created_at, updated_at,
   place:places!inner(
     id, provider, provider_place_id, name, address, latitude, longitude,
-    category, icon, created_at
+    category, icon, maps_url, created_at
   )
 `;
 
@@ -86,6 +88,7 @@ export async function getOrCreatePlace(input: PlaceInput): Promise<{ placeId?: s
         longitude: input.longitude,
         category: input.category ?? null,
         icon: input.icon ?? null,
+        maps_url: input.mapsUrl ?? null,
       })
       .select('id')
       .single();
@@ -108,6 +111,7 @@ export async function getOrCreatePlace(input: PlaceInput): Promise<{ placeId?: s
       longitude: input.longitude,
       category: input.category || 'Custom Location',
       icon: input.icon ?? null,
+      maps_url: input.mapsUrl ?? null,
     })
     .select('id')
     .single();
@@ -400,6 +404,7 @@ export async function getSavedPlaces(userId: string): Promise<SavedPlacesResult[
         longitude,
         category,
         icon,
+        maps_url,
         created_at
       )
     `

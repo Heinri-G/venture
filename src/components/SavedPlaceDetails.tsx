@@ -81,7 +81,8 @@ export default function SavedPlaceDetails({
 
   const handleShare = async () => {
     if (!place) return;
-    const url = `https://www.google.com/maps/search/?api=1&query=${place.place.latitude},${place.place.longitude}`;
+    const url = place.place.maps_url
+      ?? `https://www.google.com/maps/search/?api=1&query=${place.place.latitude},${place.place.longitude}`;
     const shareData = {
       title: place.place.name,
       text: `Check out ${place.place.name} on Venture`,
@@ -111,7 +112,8 @@ export default function SavedPlaceDetails({
           place.place.longitude
         )
       : null;
-  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${place.place.latitude},${place.place.longitude}`;
+  const mapsUrl = place.place.maps_url
+    ?? `https://www.google.com/maps/search/?api=1&query=${place.place.latitude},${place.place.longitude}`;
   const iconKey = placeIconKey(place.place.icon, place.place.category);
 
   return (

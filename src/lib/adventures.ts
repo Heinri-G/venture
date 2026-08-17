@@ -42,6 +42,7 @@ export interface AdventurePlaceWithDetails extends AdventurePlace {
       latitude: number;
       longitude: number;
       category: string | null;
+      maps_url: string | null;
       created_at: string;
     };
   };
@@ -139,7 +140,7 @@ export async function fetchAdventureWithPlaces(
           id, user_id, place_id, rating, notes, created_at, updated_at,
           place:places(
             id, provider, provider_place_id, icon, name, address, latitude, longitude,
-            category, created_at
+            category, maps_url, created_at
           )
         )
       ),

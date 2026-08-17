@@ -78,16 +78,19 @@ export function parseMapsUrl(rawUrl: string): ParsedParts {
 
   const parts: ParsedParts = {};
 
-  // Coordinates: `@lat,lng` (path), `!3dLat!4dLng` (blob), or `q=lat,lng`.
-  const atMatch = pathname.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
-  if (atMatch) {
-    parts.latitude = Number(atMatch[1]);
-    parts.longitude = Number(atMatch[2]);
-  }
+  // Coordinates: `!3dLat!4dLng` (exact place pin, highest priority),
+  // `@lat,lng` (map viewport center), or `q=lat,lng`.
   const d3d4dMatch = (pathname + url.search).match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
-  if (d3d4dMatch && parts.latitude == null) {
+  if (d3d4dMatch) {
     parts.latitude = Number(d3d4dMatch[1]);
     parts.longitude = Number(d3d4dMatch[2]);
+  }
+  if (parts.latitude == null) {
+    const atMatch = pathname.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+    if (atMatch) {
+      parts.latitude = Number(atMatch[1]);
+      parts.longitude = Number(atMatch[2]);
+    }
   }
   if (parts.latitude == null && queryParam) {
     const bareQuery = text.replace(/\([^)]*\)$/, '');
@@ -165,6 +168,15 @@ export async function resolveGoogleMapsShare(
   const parsed = parseMapsUrl(mapsUrl);
   const name = parsed.name || firstLineName(text, url);
   const hasCoords = parsed.latitude != null && parsed.longitude != null;
+
+  // If the URL is a short link that couldn't be expanded and we extracted
+  // nothing useful, return an actionable error instead of empty data.
+  if (!hasCoords && !name && isShortMapsUrl(mapsUrl)) {
+    return {
+      error:
+        'That shortened link could not be resolved. Try opening it in Google Maps and sharing again, or switch to Manual mode and enter the details by hand.',
+    };
+  }
 
   return {
     data: {

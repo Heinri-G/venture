@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useAuthUser } from '@/lib/useAuthUser';
-import { resolveGoogleMapsShare, type ResolvedMapsPlace } from '@/lib/googleMapsLink';
+import { resolveGoogleMapsShare, isShortMapsUrl, type ResolvedMapsPlace } from '@/lib/googleMapsLink';
 import { categoryForIcon } from '@/lib/placeIcons';
 import {
   findSavedPlaceByProviderId,
@@ -28,6 +28,7 @@ export interface AddPlaceInitial {
   latitude?: number;
   longitude?: number;
   googlePlaceId?: string;
+  mapsUrl?: string;
 }
 
 interface AddPlaceSheetProps {
@@ -39,7 +40,9 @@ interface AddPlaceSheetProps {
 
 function parseCoord(value: string): number | null {
   if (!value.trim()) return null;
-  const n = Number(value.trim());
+  // Handle comma as decimal separator (common on European mobile keyboards)
+  const normalized = value.trim().replace(',', '.');
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -69,6 +72,14 @@ export default function AddPlaceSheet({
   const [duplicate, setDuplicate] = useState(false);
 
   const googlePlaceId = resolved?.googlePlaceId ?? null;
+  // Only store the URL if it has been expanded to a full google.com/maps link;
+  // short links may stop working once Google sunsets Dynamic Links.
+  // Falls back to the initial URL (from ShareImport's first resolution) if the
+  // second resolution in this sheet failed or hasn't completed yet.
+  const resolvedMapsUrl =
+    resolved?.mapsUrl && !isShortMapsUrl(resolved.mapsUrl) ? resolved.mapsUrl
+    : initial?.mapsUrl && !isShortMapsUrl(initial.mapsUrl) ? initial.mapsUrl
+    : null;
 
   const applyResolved = (place: ResolvedMapsPlace) => {
     setResolved(place);
@@ -104,6 +115,10 @@ export default function AddPlaceSheet({
     setShareText('');
     setResolved(null);
     setResolveError(null);
+    setName('');
+    setAddress('');
+    setLatInput('');
+    setLngInput('');
     setIcon(null);
     setCategory(null);
     setError(null);
@@ -170,6 +185,7 @@ export default function AddPlaceSheet({
       longitude: finalLng,
       category: category ?? undefined,
       icon: icon ?? undefined,
+      mapsUrl: resolvedMapsUrl ?? undefined,
     });
     if (placeError || !placeId) {
       setSaving(false);
@@ -211,6 +227,7 @@ export default function AddPlaceSheet({
         longitude: finalLng,
         category: category ?? null,
         icon: icon ?? null,
+        maps_url: resolvedMapsUrl,
         created_at: new Date().toISOString(),
       },
     };
@@ -288,7 +305,9 @@ export default function AddPlaceSheet({
                   </p>
                   {resolved.needsReview && (
                     <p className="text-xs text-muted-foreground">
-                      The link didn&apos;t include everything — check the details below.
+                      {name || latitude != null
+                        ? 'The link didn\u2019t include everything \u2014 check the details below.'
+                        : 'Could not extract details from that link. Try opening it in Google Maps and sharing again, or fill in the details below by hand.'}
                     </p>
                   )}
                   <div className="flex flex-col gap-2">

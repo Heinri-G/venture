@@ -52,6 +52,7 @@ export interface PublicAdventure {
         latitude: number;
         longitude: number;
         category: string | null;
+        maps_url: string | null;
         created_at: string;
       };
     };
@@ -427,7 +428,7 @@ export async function fetchPublicAdventureByToken(
           id, user_id, place_id, rating, notes,
           place:places(
             id, provider, provider_place_id, icon, name, address, latitude, longitude,
-            category, created_at
+            category, maps_url, created_at
           )
         )
       )

@@ -12,7 +12,14 @@ const NO_LINK_MESSAGE =
 export default function ShareImport() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const text = searchParams.get('text') ?? '';
+  const rawText = searchParams.get('text') ?? '';
+  const rawUrl = searchParams.get('url') ?? '';
+  // The PWA share_target may deliver the Maps URL in the `url` param while
+  // `text` only contains the place name. Combine them so resolveGoogleMapsShare
+  // can always find a Maps link.
+  const text = rawUrl && !rawText.includes('google') && !rawText.includes('goo.gl')
+    ? `${rawText}\n${rawUrl}`.trim()
+    : rawText;
   const hasText = Boolean(text.trim());
 
   const [phase, setPhase] = useState<'resolving' | 'ready' | 'error'>(() =>
@@ -40,6 +47,7 @@ export default function ShareImport() {
         latitude: result.data.latitude ?? undefined,
         longitude: result.data.longitude ?? undefined,
         googlePlaceId: result.data.googlePlaceId ?? undefined,
+        mapsUrl: result.data.mapsUrl ?? undefined,
       });
       setPhase('ready');
       setOpen(true);
