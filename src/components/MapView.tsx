@@ -3,7 +3,7 @@ import { LngLatBounds, Marker } from 'maplibre-gl';
 import type { MapMouseEvent } from 'maplibre-gl';
 import { createRoot, type Root } from 'react-dom/client';
 import { useNavigate } from 'react-router-dom';
-import { Crosshair, Home, Loader2, MapPin, Navigation, Plus } from 'lucide-react';
+import { Crosshair, Home, Loader2, Navigation, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -20,6 +20,7 @@ import SavedPlaceDetails from './SavedPlaceDetails';
 import SavedPlaceDetailsSidePanel from './SavedPlaceDetailsSidePanel';
 import AddPlaceSheet, { type AddPlaceInitial } from './AddPlaceSheet';
 import AddPlaceSheetSidePanel from './AddPlaceSheetSidePanel';
+import FirstRunHint from './FirstRunHint';
 import { useMapLibre } from '../hooks/useMapLibre';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useUserLocation } from '../hooks/useUserLocation';
@@ -402,18 +403,10 @@ export default function MapView() {
         )}
 
         {!loading && places.length === 0 && !selectedPlace && (
-          <div className="absolute bottom-24 left-1/2 z-[1100] w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2">
-            <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-background/95 p-5 text-center shadow-lg backdrop-blur">
-              <span className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <MapPin className="size-6" />
-              </span>
-              <div>
-                <p className="font-heading text-sm font-semibold">No saved places yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Share a place from Google Maps to start your library.
-                </p>
-              </div>
-              <Button size="sm" onClick={openManualAdd} className="rounded-full">
+          <div className="absolute bottom-24 left-1/2 z-[1100] flex w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2">
+            <FirstRunHint />
+            <div className="flex justify-center">
+              <Button variant="ghost" size="sm" onClick={openManualAdd} className="rounded-full bg-background/80 text-muted-foreground shadow backdrop-blur hover:text-foreground">
                 <Plus />
                 Add from Google Maps
               </Button>
@@ -426,7 +419,7 @@ export default function MapView() {
           aria-label="Add a place"
           title="Add a place"
           size="icon-lg"
-          className="absolute bottom-6 right-4 z-[1100] size-14 rounded-full shadow-lg"
+          className="absolute bottom-[4.75rem] right-4 z-[1100] size-14 rounded-full shadow-lg md:bottom-6"
         >
           <Plus className="size-6" />
         </Button>

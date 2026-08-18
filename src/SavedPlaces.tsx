@@ -20,6 +20,7 @@ import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
 import { Skeleton } from './components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/select';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -378,18 +379,18 @@ export default function SavedPlaces() {
         )}
 
         <div className="flex items-center gap-2">
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SavedPlacesSortBy)}
-            aria-label="Sort saved places"
-            className="h-8 min-w-0 rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-          >
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <Select value={sortBy} onValueChange={(value) => setSortBy(value as SavedPlacesSortBy)}>
+            <SelectTrigger aria-label="Sort saved places" className="h-8 w-auto min-w-40 rounded-full">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent align="start">
+              {SORT_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" onClick={resetFilters} className="rounded-full">

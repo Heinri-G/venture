@@ -14,6 +14,7 @@ import {
   Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import ShareAdventureModal from './components/ShareAdventureModal';
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './components/ui/alert-dialog';
 import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
@@ -79,6 +80,8 @@ export default function Adventures() {
 
   const [deleteTarget, setDeleteTarget] = useState<AdventureCardData | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [shareTarget, setShareTarget] = useState<AdventureCardData | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -226,20 +229,8 @@ export default function Adventures() {
     toast.success('Adventure deleted', { description: deleteTarget.title });
   }, [deleteTarget]);
 
-  const handleShare = useCallback(async (adventure: AdventureCardData) => {
-    if (adventure.visibility !== 'public') {
-      toast.info('Sharing is coming soon', {
-        description: 'Make this adventure public to get a shareable link.',
-      });
-      return;
-    }
-    const url = `${window.location.origin}/adventures/${adventure.id}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success('Public link copied');
-    } catch {
-      toast.error('Could not copy the link');
-    }
+  const handleShare = useCallback((adventure: AdventureCardData) => {
+    setShareTarget(adventure);
   }, []);
 
   if (!user) return null;
@@ -479,6 +470,18 @@ export default function Adventures() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {shareTarget && (
+        <ShareAdventureModal
+          adventure={shareTarget}
+          userId={user.id}
+          open={shareTarget != null}
+          onOpenChange={(open) => {
+            if (!open) setShareTarget(null);
+          }}
+          onShared={() => setReloadKey((k) => k + 1)}
+        />
+      )}
     </div>
   );
 }

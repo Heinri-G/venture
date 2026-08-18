@@ -32,6 +32,41 @@ interface AdventureCreationFormProps {
   onCancel: () => void;
 }
 
+const DRAFT_KEY_PREFIX = 'venture:adventure-draft';
+const DRAFT_KEY = (userId: string) => `${DRAFT_KEY_PREFIX}:${userId}`;
+
+interface AdventureDraft {
+  step: Step;
+  title: string;
+  description: string;
+  visibility: AdventureVisibility;
+  allowCollaboration: boolean;
+  orderedPlaces: SavedPlaceWithDetails[];
+}
+
+function readDraft(userId: string): AdventureDraft | null {
+  if (!userId) return null;
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<AdventureDraft>;
+    if (!parsed || typeof parsed.title !== 'string') return null;
+    return {
+      step:
+        parsed.step && STEPS.some((s) => s.id === parsed.step)
+          ? (parsed.step as Step)
+          : 'metadata',
+      title: parsed.title,
+      description: parsed.description || '',
+      visibility: parsed.visibility || 'private',
+      allowCollaboration: parsed.allowCollaboration ?? false,
+      orderedPlaces: Array.isArray(parsed.orderedPlaces) ? parsed.orderedPlaces : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
 const STEPS: { id: Step; label: string }[] = [
   { id: 'metadata', label: 'Details' },
   { id: 'places', label: 'Places' },
@@ -170,26 +205,93 @@ export default function AdventureCreationForm({
   onComplete,
   onCancel,
 }: AdventureCreationFormProps) {
-  const [step, setStep] = useState<Step>('metadata');
+  const [restoredDraft] = useState<AdventureDraft | null>(() =>
+    mode === 'create' ? readDraft(userId) : null
+  );
 
-  const [title, setTitle] = useState(initialAdventure?.title || '');
-  const [description, setDescription] = useState(initialAdventure?.description || '');
+  const [step, setStep] = useState<Step>(restoredDraft?.step ?? 'metadata');
+
+  const [title, setTitle] = useState(restoredDraft?.title ?? initialAdventure?.title ?? '');
+  const [description, setDescription] = useState(
+    restoredDraft?.description ?? initialAdventure?.description ?? ''
+  );
   const [visibility, setVisibility] = useState<AdventureVisibility>(
-    initialAdventure?.visibility || 'private'
+    restoredDraft?.visibility ?? initialAdventure?.visibility ?? 'private'
   );
   const [allowCollaboration, setAllowCollaboration] = useState(
-    initialAdventure?.allow_collaboration ?? false
+    restoredDraft?.allowCollaboration ?? initialAdventure?.allow_collaboration ?? false
   );
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(
     initialAdventure?.cover_photo_url ?? null
   );
   const [coverRemoved, setCoverRemoved] = useState(false);
-  const [orderedPlaces, setOrderedPlaces] = useState<SavedPlaceWithDetails[]>(initialPlaces);
+  const [orderedPlaces, setOrderedPlaces] = useState<SavedPlaceWithDetails[]>(
+    restoredDraft?.orderedPlaces ?? initialPlaces
+  );
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [titleTouched, setTitleTouched] = useState(false);
+
+  // Draft persistence (create mode only): restore a saved draft on first mount,
+  // then mirror every change to localStorage so interruptions never lose progress.
+  const completedRef = useRef(false);
+  const persistReadyRef = useRef(false);
+
+  useEffect(() => {
+    if (!restoredDraft || mode !== 'create') return;
+    toast.info('Draft restored', {
+      description: 'Picked up where you left off.',
+      action: {
+        label: 'Discard',
+        onClick: () => {
+          try {
+            localStorage.removeItem(DRAFT_KEY(userId));
+          } catch {
+            /* ignore storage errors */
+          }
+        },
+      },
+    });
+  }, [restoredDraft, mode, userId]);
+
+  // Enable persistence only after the first paint, so the hydration above can
+  // never overwrite a restored draft with the pristine empty state.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      persistReadyRef.current = true;
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  useEffect(() => {
+    if (mode !== 'create' || !persistReadyRef.current) return;
+    if (submitting || completedRef.current) return;
+    const draft: AdventureDraft = {
+      step,
+      title,
+      description,
+      visibility,
+      allowCollaboration,
+      orderedPlaces,
+    };
+    try {
+      localStorage.setItem(DRAFT_KEY(userId), JSON.stringify(draft));
+    } catch {
+      /* storage full / unavailable — drafts are best-effort */
+    }
+  }, [mode, userId, submitting, step, title, description, visibility, allowCollaboration, orderedPlaces]);
+
+  const clearDraft = useCallback(() => {
+    if (mode !== 'create') return;
+    completedRef.current = true;
+    try {
+      localStorage.removeItem(DRAFT_KEY(userId));
+    } catch {
+      /* ignore storage errors */
+    }
+  }, [mode, userId]);
 
   useEffect(() => {
     return () => {
@@ -278,6 +380,7 @@ export default function AdventureCreationForm({
         if (linkError) throw new Error(linkError);
 
         toast.success('Adventure created', { description: adventure.title });
+        clearDraft();
         onComplete({ ...adventure, cover_photo_url: coverUrl ?? adventure.cover_photo_url });
       } else {
         if (!initialAdventure) throw new Error('Adventure not found.');

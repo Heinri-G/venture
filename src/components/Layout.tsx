@@ -15,6 +15,7 @@ import {
 } from './ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from './ui/sheet';
 import { Skeleton } from './ui/skeleton';
+import BottomNav from './navigation/BottomNav';
 import NotificationsSheet from './NotificationsSheet';
 import { useNotifications } from './NotificationsProvider';
 import { useAuthUser } from '../lib/useAuthUser';
@@ -244,7 +245,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="flex-1">{children}</main>
+      <main className={cn('flex-1', user && 'pb-16 md:pb-0')}>{children}</main>
 
       <footer className="mt-20 border-t border-border/60">
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
@@ -257,6 +258,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <p>© {new Date().getFullYear()} Venture</p>
         </div>
       </footer>
+
+      {user && <BottomNav />}
 
       <NotificationsSheet open={notifOpen} onOpenChange={setNotifOpen} />
     </div>

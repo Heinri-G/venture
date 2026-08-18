@@ -53,7 +53,7 @@ export default function Signup() {
             required
             autoComplete="name"
             placeholder="Jane Doe"
-            className="h-10 px-3"
+            className="h-11 px-3.5"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
@@ -66,7 +66,7 @@ export default function Signup() {
             required
             autoComplete="email"
             placeholder="you@example.com"
-            className="h-10 px-3"
+            className="h-11 px-3.5"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -78,7 +78,7 @@ export default function Signup() {
             type="password"
             required
             autoComplete="new-password"
-            className="h-10 px-3"
+            className="h-11 px-3.5"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />

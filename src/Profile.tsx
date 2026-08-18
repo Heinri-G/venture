@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Bookmark, Camera } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Bookmark, Camera, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from './lib/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from './components/ui/avatar';
@@ -241,11 +242,17 @@ export default function Profile() {
                 <Bookmark className="size-5" />
               </span>
               <div className="flex flex-col gap-1">
-                <p className="font-heading text-base font-semibold">No saved places yet</p>
+                <p className="font-heading text-base font-semibold">Your saved places live elsewhere</p>
                 <p className="mx-auto max-w-xs text-sm text-muted-foreground">
-                  Places you save will appear here, ready for your next adventure.
+                  Manage and browse your library on the Saved Places page — rate, note, and build adventures from there.
                 </p>
               </div>
+              <Button asChild variant="outline" className="rounded-full">
+                <Link to="/saved-places">
+                  <MapPin />
+                  Go to saved places
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

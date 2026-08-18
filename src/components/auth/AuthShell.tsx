@@ -33,8 +33,8 @@ export default function AuthShell({
               {icon ?? <EdelweissMark className="size-6" />}
             </Link>
             <div className="flex flex-col gap-1.5">
-              <h1 className="font-heading text-2xl font-bold tracking-tight">{title}</h1>
-              <p className="text-sm text-muted-foreground">{description}</p>
+              <h1 className="font-heading text-3xl font-bold tracking-tight">{title}</h1>
+              <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
             </div>
           </CardHeader>
           <CardContent className="px-7">{children}</CardContent>

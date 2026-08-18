@@ -1,51 +1,54 @@
-'use client';
-
 import React from 'react';
-import { Map, Bookmark, Compass, Users } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
+import { Bookmark, Compass, Map as MapIcon, Users } from 'lucide-react';
+import { cn } from '../../lib/utils';
 
-interface BottomNavProps {
-  activeTab: 'map' | 'saved' | 'adventures' | 'friends';
-  onTabChange: (tab: 'map' | 'saved' | 'adventures' | 'friends') => void;
-  savedCount?: number;
-}
+const TABS = [
+  { to: '/map', label: 'Explore', icon: MapIcon, end: true },
+  { to: '/saved-places', label: 'Saved', icon: Bookmark, end: true },
+  { to: '/adventures', label: 'Adventures', icon: Compass, end: false },
+  { to: '/friends', label: 'Social', icon: Users, end: true },
+] as const;
 
-export default function BottomNav({ activeTab, onTabChange, savedCount = 0 }: BottomNavProps) {
-  const tabs = [
-    { id: 'map', label: 'Explore', icon: Map, badge: null },
-    { id: 'saved', label: 'Saved', icon: Bookmark, badge: savedCount > 0 ? savedCount : null },
-    { id: 'adventures', label: 'Adventures', icon: Compass, badge: null },
-    { id: 'friends', label: 'Social', icon: Users, badge: null },
-  ] as const;
-
+export default function BottomNav() {
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 w-[90%] max-w-md">
-      <div className="glass rounded-3xl p-2 px-3 flex items-center justify-around shadow-2xl border border-white/20">
-        {tabs.map((tab) => {
+    <nav
+      aria-label="Main navigation"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/85 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-1.5 backdrop-blur-xl md:hidden"
+    >
+      <div className="mx-auto flex max-w-md items-stretch justify-around gap-1 px-3">
+        {TABS.map((tab) => {
           const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
           return (
-            <button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              className={`relative flex flex-col items-center gap-1 py-1.5 px-4 rounded-2xl transition-base ${
-                isActive
-                  ? 'text-primary font-bold scale-105'
-                  : 'text-muted hover:text-foreground font-medium'
-              }`}
+            <NavLink
+              key={tab.to}
+              to={tab.to}
+              end={tab.end}
+              className={({ isActive }) =>
+                cn(
+                  'flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl py-1.5 transition-colors',
+                  isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                )
+              }
             >
-              <div className="relative">
-                <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-                {tab.badge && (
-                  <span className="absolute -top-1.5 -right-2.5 bg-accent text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
-                    {tab.badge}
+              {({ isActive }) => (
+                <>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'flex size-8 items-center justify-center rounded-full transition-colors',
+                      isActive && 'bg-primary/10'
+                    )}
+                  >
+                    <Icon className="size-5" strokeWidth={isActive ? 2.5 : 2} />
                   </span>
-                )}
-              </div>
-              <span className="text-[11px]">{tab.label}</span>
-            </button>
+                  <span className="text-[11px] font-medium leading-none">{tab.label}</span>
+                </>
+              )}
+            </NavLink>
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 }
