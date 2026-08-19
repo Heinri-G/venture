@@ -247,7 +247,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className={cn('flex-1', user && 'pb-16 md:pb-0')}>{children}</main>
+      <main className={cn(
+        'flex-1',
+        user && 'md:pb-0',
+        user && (pathname === '/map' ? 'flex flex-col pb-[4.625rem]' : 'pb-16'),
+      )}>{children}</main>
 
       {pathname !== '/map' && (
         <footer className="mt-20 border-t border-border/60">

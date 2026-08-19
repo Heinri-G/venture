@@ -216,7 +216,7 @@ export function createProtomapsStyle(theme: MapTheme): StyleSpecification {
       protomaps: {
         type: 'vector',
         tiles: [PROTOMAPS_TILES_URL],
-        attribution: '© OpenStreetMap contributors · Protomaps',
+        attribution: '© <a href="https://openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors · Protomaps',
       },
     },
     layers: layers('protomaps', flavor, { lang: 'en' }),

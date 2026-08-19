@@ -356,7 +356,7 @@ export default function MapView() {
   };
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-muted">
+    <div className="flex flex-1 w-full overflow-hidden bg-muted">
       {!isMobile && selectedPlace && (
         <SavedPlaceDetailsSidePanel
           key={selectedPlace.id}
@@ -452,12 +452,6 @@ export default function MapView() {
         {!loading && places.length === 0 && !selectedPlace && (
           <div className="absolute bottom-24 left-1/2 z-[1100] flex w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 flex-col gap-2">
             <FirstRunHint />
-            <div className="flex justify-center">
-              <Button variant="ghost" size="sm" onClick={openManualAdd} className="rounded-full bg-background/80 text-muted-foreground shadow backdrop-blur hover:text-foreground">
-                <Plus />
-                Add from Google Maps
-              </Button>
-            </div>
           </div>
         )}
 
@@ -466,7 +460,7 @@ export default function MapView() {
           aria-label="Add a place"
           title="Add a place"
           size="icon-lg"
-          className="absolute bottom-[4.75rem] right-4 z-[1100] size-14 rounded-full shadow-lg md:bottom-6"
+          className="absolute bottom-12 right-4 z-[1100] size-14 rounded-full shadow-lg"
         >
           <Plus className="size-6" />
         </Button>

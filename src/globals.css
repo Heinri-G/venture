@@ -184,9 +184,12 @@ body,
   background-color: var(--meadow-hero-bg);
 }
 
-/* Map fits between header and fixed bottom nav on mobile. */
-@media (max-width: 767px) {
-  .map-container {
-    height: calc(100dvh - 4rem - 4.625rem) !important;
-  }
+/* Map attribution link styling */
+.maplibregl-ctrl-attribution a {
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+  text-underline-offset: 2px;
+}
+.maplibregl-ctrl-attribution a:hover {
+  opacity: 0.7;
 }

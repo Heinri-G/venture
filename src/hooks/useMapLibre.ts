@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTheme } from 'next-themes';
-import { Map, setWorkerUrl } from 'maplibre-gl';
+import { AttributionControl, Map, setWorkerUrl } from 'maplibre-gl';
 import { createProtomapsStyle, type MapTheme } from '../lib/map/protomaps';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 
@@ -57,13 +57,27 @@ export function useMapLibre(options?: UseMapLibreOptions) {
       style: createProtomapsStyle(themeRef.current),
       center: optionsRef.current?.center ?? cachedUserCenter() ?? DEFAULT_CENTER,
       zoom: optionsRef.current?.zoom ?? 12,
-      attributionControl: { compact: true },
+      attributionControl: false,
     });
+
+    const attribution = new AttributionControl({ compact: true });
+    instance.addControl(attribution);
+
+    // Expand attribution so it's visible on load per OSM guidelines.
+    const attrEl = container.querySelector('.maplibregl-ctrl-attribution');
+    if (attrEl) attrEl.removeAttribute('collapsed');
+
+    // Collapse on any map interaction.
+    const collapseOnInteraction = () => {
+      attrEl?.setAttribute('collapsed', '');
+    };
+    instance.on('movestart', collapseOnInteraction);
 
     mapRef.current = instance;
     setMap(instance);
 
     return () => {
+      instance.off('movestart', collapseOnInteraction);
       instance.remove();
       mapRef.current = null;
       setMap(null);
