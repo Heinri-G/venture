@@ -183,3 +183,10 @@ body,
 @utility bg-meadow-hero {
   background-color: var(--meadow-hero-bg);
 }
+
+/* Map fits between header and fixed bottom nav on mobile. */
+@media (max-width: 767px) {
+  .map-container {
+    height: calc(100dvh - 4rem - 4.625rem) !important;
+  }
+}
