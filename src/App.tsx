@@ -11,6 +11,7 @@ import { useAuthUser } from './lib/useAuthUser';
 import { Skeleton } from './components/ui/skeleton';
 import Login from './Login';
 import Signup from './Signup';
+import VerifyEmail from './VerifyEmail';
 import { Toaster } from './components/ui/sonner';
 
 const Profile = lazy(() => import('./Profile'));
@@ -24,7 +25,7 @@ const AdventurePublicView = lazy(() => import('./AdventurePublicView'));
 const MapView = lazy(() => import('./components/MapView'));
 const ShareImport = lazy(() => import('./components/ShareImport'));
 
-/** Redirect signed-in users to /map; show the marketing page for visitors. */
+/** Redirect signed-in users to /explore; show the marketing page for visitors. */
 function HomeOrRedirect() {
   const { user, loading } = useAuthUser();
 
@@ -39,7 +40,7 @@ function HomeOrRedirect() {
   }
 
   if (user) {
-    return <Navigate to="/map" replace />;
+    return <Navigate to="/explore" replace />;
   }
 
   return (
@@ -59,13 +60,14 @@ export default function App() {
             <Routes>
               <Route path="/" element={<HomeOrRedirect />} />
               <Route path="/home" element={<HomeOrRedirect />} />
-              <Route path="/map" element={<ProtectedRoute><div className="map-container flex flex-col flex-1 w-full"><MapView /></div></ProtectedRoute>} />
+              <Route path="/explore" element={<div className="map-container flex flex-col flex-1 w-full"><MapView /></div>} />
               <Route path="/share" element={<ProtectedRoute><PageTransition><ShareImport /></PageTransition></ProtectedRoute>} />
               <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
               <Route path="/signup" element={<PageTransition><Signup /></PageTransition>} />
+              <Route path="/verify-email" element={<PageTransition><VerifyEmail /></PageTransition>} />
               <Route path="/profile" element={<ProtectedRoute><PageTransition><Profile /></PageTransition></ProtectedRoute>} />
               <Route path="/u/:userId" element={<PageTransition><UserProfile /></PageTransition>} />
-              <Route path="/friends" element={<ProtectedRoute><PageTransition><Friends /></PageTransition></ProtectedRoute>} />
+              <Route path="/social" element={<ProtectedRoute><PageTransition><Friends /></PageTransition></ProtectedRoute>} />
               <Route path="/saved-places" element={<ProtectedRoute><SavedPlaces /></ProtectedRoute>} />
               <Route path="/adventures" element={<ProtectedRoute><PageTransition><Adventures /></PageTransition></ProtectedRoute>} />
               <Route path="/adventures/new" element={<ProtectedRoute><PageTransition><AdventureCreate /></PageTransition></ProtectedRoute>} />

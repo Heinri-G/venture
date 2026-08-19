@@ -27,8 +27,8 @@ export default function Signup() {
       toast.error('Signup failed', { description: error.message });
       return;
     }
-    toast.success('Account created', { description: 'Welcome to Venture!' });
-    navigate('/');
+    toast.success('Account created', { description: 'Check your email to verify your account.' });
+    navigate('/verify-email', { state: { email } });
   };
 
   return (

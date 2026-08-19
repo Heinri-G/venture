@@ -19,6 +19,10 @@ export default function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
+      if (error.message === 'Email not confirmed') {
+        navigate('/verify-email', { state: { email } });
+        return;
+      }
       toast.error('Login failed', { description: error.message });
       return;
     }
