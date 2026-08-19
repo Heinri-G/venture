@@ -463,7 +463,7 @@ export default function AddPlaceSheet({
       <SheetContent
         side="bottom"
         showCloseButton
-        className="mx-auto max-w-md gap-0 rounded-t-2xl p-0 sm:max-w-lg"
+        className="mx-auto max-w-md gap-0 rounded-t-2xl p-0 max-h-[85svh] sm:max-w-lg"
       >
         <AddPlaceSheetBody
           open={open}

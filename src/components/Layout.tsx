@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Bookmark, LogOut, Map, MapPin, Menu, Moon, Route, Sun, User, Users, X } from 'lucide-react';
 import EdelweissMark from './brand/EdelweissMark';
 import { useTheme } from 'next-themes';
@@ -60,12 +60,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthUser();
   const { unreadCount } = useNotifications();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
-  // Logged-out visitors only get the marketing-relevant links (Home + Map);
-  // the full app chrome is reserved for signed-in users.
-  const navLinks = !loading && user ? NAV_LINKS : NAV_LINKS.filter((l) => l.to === '/' || l.to === '/map');
+  // Signed-in users don't need the marketing "Home" link; signed-out visitors see Home + Map.
+  const navLinks = !loading && user
+    ? NAV_LINKS.filter((l) => l.to !== '/')
+    : NAV_LINKS.filter((l) => l.to === '/' || l.to === '/map');
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -247,17 +249,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       <main className={cn('flex-1', user && 'pb-16 md:pb-0')}>{children}</main>
 
-      <footer className="mt-20 border-t border-border/60">
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
-          <p className="flex items-center gap-1.5">
-            <span className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <EdelweissMark className="size-4" />
-            </span>
-            Venture — explore &amp; save amazing places
-          </p>
-          <p>© {new Date().getFullYear()} Venture</p>
-        </div>
-      </footer>
+      {pathname !== '/map' && (
+        <footer className="mt-20 border-t border-border/60">
+          <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
+            <p className="flex items-center gap-1.5">
+              <span className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <EdelweissMark className="size-4" />
+              </span>
+              Venture — explore &amp; save amazing places
+            </p>
+            <p>© {new Date().getFullYear()} Venture</p>
+          </div>
+        </footer>
+      )}
 
       {user && <BottomNav />}
 

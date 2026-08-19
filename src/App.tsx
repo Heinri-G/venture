@@ -24,8 +24,8 @@ const AdventurePublicView = lazy(() => import('./AdventurePublicView'));
 const MapView = lazy(() => import('./components/MapView'));
 const ShareImport = lazy(() => import('./components/ShareImport'));
 
-/** Inverted mirror of ProtectedRoute: logged-in users skip the marketing page. */
-function RedirectIfAuthenticated({ children }: { children: React.ReactNode }) {
+/** Redirect signed-in users to /map; show the marketing page for visitors. */
+function HomeOrRedirect() {
   const { user, loading } = useAuthUser();
 
   if (loading) {
@@ -42,7 +42,11 @@ function RedirectIfAuthenticated({ children }: { children: React.ReactNode }) {
     return <Navigate to="/map" replace />;
   }
 
-  return <>{children}</>;
+  return (
+    <PageTransition>
+      <Home />
+    </PageTransition>
+  );
 }
 
 export default function App() {
@@ -53,16 +57,8 @@ export default function App() {
         <RouteErrorBoundary>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
-              <Route
-                path="/"
-                element={
-                  <RedirectIfAuthenticated>
-                    <PageTransition>
-                      <Home />
-                    </PageTransition>
-                  </RedirectIfAuthenticated>
-                }
-              />
+              <Route path="/" element={<HomeOrRedirect />} />
+              <Route path="/home" element={<HomeOrRedirect />} />
               <Route path="/map" element={<ProtectedRoute><div className="h-[calc(100dvh-4rem)] w-full"><MapView /></div></ProtectedRoute>} />
               <Route path="/share" element={<ProtectedRoute><PageTransition><ShareImport /></PageTransition></ProtectedRoute>} />
               <Route path="/login" element={<PageTransition><Login /></PageTransition>} />

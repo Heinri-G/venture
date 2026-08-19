@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { LngLatBounds, Marker } from 'maplibre-gl';
-import type { MapMouseEvent } from 'maplibre-gl';
 import { createRoot, type Root } from 'react-dom/client';
-import { useNavigate } from 'react-router-dom';
-import { Crosshair, Home, Loader2, Navigation, Plus } from 'lucide-react';
+import { Loader2, Navigation, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -113,7 +111,6 @@ function createMarkerElement(
 }
 
 export default function MapView() {
-  const navigate = useNavigate();
   const { user } = useAuthUser();
   const { containerRef, map } = useMapLibre();
   const { location: userLocation, loading: locationLoading } = useUserLocation();
@@ -126,8 +123,7 @@ export default function MapView() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [addInitial, setAddInitial] = useState<AddPlaceInitial | null>(null);
-  const [pinDropMode, setPinDropMode] = useState(false);
-  const pinDropRef = useRef<((lat: number, lng: number) => void) | null>(null);
+  const [filterCategory, setFilterCategory] = useState<string | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<SavedPlaceWithDetails | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -150,6 +146,19 @@ export default function MapView() {
       cancelled = true;
     };
   }, [user]);
+
+  const categories = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const p of places) {
+      if (p.place.category) set.add(p.place.category);
+    }
+    return Array.from(set).sort();
+  }, [places]);
+
+  const filteredPlaces = React.useMemo(() => {
+    if (!filterCategory) return places;
+    return places.filter((p) => p.place.category === filterCategory);
+  }, [places, filterCategory]);
 
   const startupFittedRef = useRef(false);
 
@@ -204,10 +213,10 @@ export default function MapView() {
     setSelectedPlace(place);
   }, []);
 
-  // HTML icon markers, rebuilt when the selection or set changes.
+  // HTML icon markers, rebuilt when the selection or filtered set changes.
   useEffect(() => {
     if (!map) return;
-    const markers = places.map((place) => {
+    const markers = filteredPlaces.map((place) => {
       const { el, cleanup } = createMarkerElement(place, place.id === selectedPlace?.id, () =>
         handleSelectPlace(place)
       );
@@ -222,27 +231,58 @@ export default function MapView() {
         cleanup();
       });
     };
-  }, [map, places, selectedPlace, handleSelectPlace]);
+  }, [map, filteredPlaces, selectedPlace, handleSelectPlace]);
 
-  // Pin-drop mode: the next canvas click sets the coordinates and opens AddPlaceSheet.
-  useEffect(() => {
-    pinDropRef.current = pinDropMode
-      ? (lat, lng) => {
-          setPinDropMode(false);
-          setAddInitial({ latitude: lat, longitude: lng });
-          setAddOpen(true);
-        }
-      : null;
-  }, [pinDropMode]);
-
+  // Long-press on the map canvas opens AddPlaceSheet with coordinates.
   useEffect(() => {
     if (!map) return;
-    const handleClick = (e: MapMouseEvent) => {
-      pinDropRef.current?.(e.lngLat.lat, e.lngLat.lng);
+    const container = map.getContainer();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let startX = 0;
+    let startY = 0;
+    let didMove = false;
+
+    const clear = () => {
+      if (timer) { clearTimeout(timer); timer = null; }
     };
-    map.on('click', handleClick);
+
+    const onDown = (e: PointerEvent) => {
+      startX = e.clientX;
+      startY = e.clientY;
+      didMove = false;
+      clear();
+      timer = setTimeout(() => {
+        if (!didMove) {
+          const rect = container.getBoundingClientRect();
+          const lngLat = map.unproject([e.clientX - rect.left, e.clientY - rect.top]);
+          setAddInitial({ latitude: lngLat.lat, longitude: lngLat.lng });
+          setAddOpen(true);
+        }
+      }, 500);
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (
+        Math.abs(e.clientX - startX) > 10 ||
+        Math.abs(e.clientY - startY) > 10
+      ) {
+        didMove = true;
+        clear();
+      }
+    };
+
+    const onUp = () => clear();
+
+    container.addEventListener('pointerdown', onDown);
+    container.addEventListener('pointermove', onMove);
+    container.addEventListener('pointerup', onUp);
+    container.addEventListener('pointercancel', onUp);
     return () => {
-      map.off('click', handleClick);
+      clear();
+      container.removeEventListener('pointerdown', onDown);
+      container.removeEventListener('pointermove', onMove);
+      container.removeEventListener('pointerup', onUp);
+      container.removeEventListener('pointercancel', onUp);
     };
   }, [map]);
 
@@ -341,23 +381,53 @@ export default function MapView() {
       <div className="relative isolate min-w-0 flex-1">
         <div ref={containerRef} className="h-full w-full" />
 
+        {/* Search bar — top of viewport */}
         <PlacesSearch
           onPlaceSelect={handleSearchSelect}
           onAddPlace={openManualAdd}
-          className="inset-x-4 top-[4.5rem]"
+          className="inset-x-4 top-4"
         />
 
-        <Button
-          onClick={() => navigate('/')}
-          aria-label="Back to home"
-          variant="outline"
-          size="icon-lg"
-          className="absolute left-4 top-4 z-[1100] size-11 rounded-full bg-background shadow-lg"
-        >
-          <Home />
-        </Button>
+        {/* Category filter pills — below search */}
+        {categories.length > 0 && (
+          <div className="no-scrollbar absolute inset-x-0 top-[4.25rem] z-[1100] flex gap-2 overflow-x-auto px-4">
+            <button
+              type="button"
+              onClick={() => setFilterCategory(null)}
+              aria-pressed={filterCategory === null}
+              className={cn(
+                'h-8 shrink-0 rounded-full px-3.5 text-sm font-medium transition-colors',
+                filterCategory === null
+                  ? 'bg-primary text-primary-foreground shadow'
+                  : 'bg-background/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-background hover:text-foreground'
+              )}
+            >
+              All
+            </button>
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setFilterCategory(cat)}
+                aria-pressed={filterCategory === cat}
+                className={cn(
+                  'h-8 shrink-0 rounded-full px-3.5 text-sm font-medium transition-colors',
+                  filterCategory === cat
+                    ? 'bg-primary text-primary-foreground shadow'
+                    : 'bg-background/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-background hover:text-foreground'
+                )}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
 
-        <div className="absolute right-4 top-4 z-[1100] flex flex-col gap-2">
+        {/* Right-side button column — below category pills (or search if no pills) */}
+        <div className={cn(
+          'absolute right-4 z-[1100] flex flex-col gap-2',
+          categories.length > 0 ? 'top-[7.5rem]' : 'top-[5.75rem]'
+        )}>
           <Button
             onClick={handleLocateMe}
             aria-label="Current location"
@@ -368,20 +438,6 @@ export default function MapView() {
           >
             <Navigation />
           </Button>
-          <Button
-            onClick={() => setPinDropMode((prev) => !prev)}
-            aria-label="Drop a pin"
-            title="Drop a pin to add a place"
-            aria-pressed={pinDropMode}
-            variant="outline"
-            size="icon-lg"
-            className={cn(
-              'size-11 rounded-full bg-background shadow-lg',
-              pinDropMode ? 'bg-primary text-primary-foreground' : 'text-primary'
-            )}
-          >
-            <Crosshair />
-          </Button>
         </div>
 
         {loading && (
@@ -390,15 +446,6 @@ export default function MapView() {
             className="absolute left-1/2 top-4 z-[1100] -translate-x-1/2 shadow"
           >
             Loading places...
-          </Badge>
-        )}
-
-        {pinDropMode && (
-          <Badge
-            variant="secondary"
-            className="absolute bottom-24 left-1/2 z-[1100] -translate-x-1/2 shadow"
-          >
-            Tap the map to drop a pin
           </Badge>
         )}
 
